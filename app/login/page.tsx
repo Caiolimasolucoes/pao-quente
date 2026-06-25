@@ -3,17 +3,30 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState('');
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setErro('');
     setLoading(true);
-    setTimeout(() => router.push('/dashboard'), 800);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+
+    if (error) {
+      setErro('Email ou senha incorretos.');
+      setLoading(false);
+    } else {
+      router.push('/dashboard');
+      router.refresh();
+    }
   }
 
   return (
@@ -83,6 +96,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="seu@email.com"
+                required
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white"
               />
             </div>
@@ -94,15 +108,16 @@ export default function LoginPage() {
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 placeholder="••••••••"
+                required
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white"
               />
             </div>
 
-            <div className="flex justify-end">
-              <button type="button" className="text-xs text-amber-700 hover:text-amber-900">
-                Esqueci minha senha
-              </button>
-            </div>
+            {erro && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                {erro}
+              </p>
+            )}
 
             <button
               type="submit"

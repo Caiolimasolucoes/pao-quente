@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   TrendingUp,
@@ -13,8 +13,10 @@ import {
   FolderOpen,
   Users,
   RotateCcw,
+  LogOut,
 } from 'lucide-react';
 import { usePermissoes } from '@/contexts/PermissoesContext';
+import { createClient } from '@/lib/supabase/client';
 
 export const navItems = [
   { href: '/dashboard',              label: 'Resumo',                icon: LayoutDashboard, exact: true },
@@ -29,7 +31,15 @@ export const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { abasVisiveis, simulandoComo, resetarAdmin } = usePermissoes();
+
+  async function handleLogout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/login');
+    router.refresh();
+  }
 
   const itensFiltrados = navItems.filter((item) => abasVisiveis.includes(item.href));
 
@@ -104,10 +114,17 @@ export default function Sidebar() {
           <div className="w-8 h-8 rounded-full bg-amber-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
             {simulandoComo ? simulandoComo.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase() : 'MS'}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-white text-xs font-medium truncate">{simulandoComo ?? 'Maria Silva'}</p>
             <p className="text-amber-400/70 text-xs truncate">{simulandoComo ? 'Simulação' : 'Administrador'}</p>
           </div>
+          <button
+            onClick={handleLogout}
+            title="Sair"
+            className="text-amber-400/50 hover:text-white transition-colors flex-shrink-0"
+          >
+            <LogOut size={15} />
+          </button>
         </div>
       </div>
     </aside>
