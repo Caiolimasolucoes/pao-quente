@@ -12,16 +12,10 @@ const MESES_LONGO = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julh
 const MOCK_ANO = 2026;
 const MOCK_MES_MAX = 5;
 
-const unidadeOpcoes = [
-  { value: 'todas', label: 'Todas', labelLong: 'Todas as unidades' },
-  { value: '1',     label: 'Centro', labelLong: 'Unidade Centro' },
-  { value: '2',     label: 'Bairro', labelLong: 'Unidade Bairro' },
-] as const;
-
 interface HeaderProps { title: string; }
 
 export default function Header({ title }: HeaderProps) {
-  const { filtroUnidade, setFiltroUnidade } = useUnit();
+  const { filtroUnidade, setFiltroUnidade, unidades } = useUnit();
   const { mesInicio, mesFim, ano, setRange } = useDateRange();
   const { toggle } = useSidebar();
 
@@ -120,15 +114,12 @@ export default function Header({ title }: HeaderProps) {
           <Building2 size={14} className="text-gray-500 flex-shrink-0" />
           <select
             value={filtroUnidade}
-            onChange={(e) => setFiltroUnidade(e.target.value as typeof filtroUnidade)}
+            onChange={(e) => setFiltroUnidade(e.target.value)}
             className="text-xs sm:text-sm font-medium text-gray-700 bg-transparent border-none outline-none cursor-pointer"
           >
-            {unidadeOpcoes.map((o) => (
-              <option key={o.value} value={o.value}>
-                <span className="sm:hidden">{o.label}</span>
-                <span className="hidden sm:inline">{o.labelLong}</span>
-                {o.label}
-              </option>
+            <option value="todas">Todas as unidades</option>
+            {unidades.map((u) => (
+              <option key={u.id} value={u.id}>{u.nome}</option>
             ))}
           </select>
         </div>

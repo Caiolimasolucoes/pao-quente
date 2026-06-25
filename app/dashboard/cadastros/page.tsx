@@ -6,6 +6,7 @@ import Modal from '@/components/ui/Modal';
 import { Plus, Pencil, Building2, X, Check, CreditCard, Target, Save, Trash2, AlertCircle } from 'lucide-react';
 import { useFormasPagamento } from '@/contexts/FormasPagamentoContext';
 import { useMetas, DEFAULT_DESP } from '@/contexts/MetasContext';
+import { useUnit } from '@/contexts/UnitContext';
 import type { MetaFaturamento, MetaDespesaCategoria, MetaLucro } from '@/contexts/MetasContext';
 import { createClient } from '@/lib/supabase/client';
 
@@ -57,7 +58,7 @@ function modalTitle(tipo: ModalTipo, editando: boolean): string {
     'cat-compra': `${prefix} Categoria de Compra`,
     'cat-boleto': `${prefix} Categoria de Boleto`,
     'unid-medida': `${prefix} Unidade de Medida`,
-    unidade: 'Editar Unidade',
+    unidade: editando ? 'Editar Unidade' : 'Nova Unidade',
   };
   return tipo ? map[tipo] : '';
 }
@@ -66,6 +67,7 @@ export default function CadastrosPage() {
   const [aba, setAba] = useState<Aba>('unidades');
   const [catExpand, setCatExpand] = useState<string | null>(null);
   const { formas, toggleForma, adicionarForma, removerForma } = useFormasPagamento();
+  const { recarregarUnidades } = useUnit();
 
   // DB state
   const [unidadesPadaria, setUnidadesPadaria] = useState<any[]>([]);
@@ -191,8 +193,15 @@ export default function CadastrosPage() {
           if (error) throw error;
         }
       } else if (modalTipo === 'unidade') {
-        const { error } = await supabase.from('unidades').update({ cnpj: fCnpj.trim(), endereco: fEndereco.trim(), responsavel: fResponsavel.trim() }).eq('id', editandoItem.id);
-        if (error) throw error;
+        if (!fNome.trim()) throw new Error('Informe o nome da unidade.');
+        if (editandoItem) {
+          const { error } = await supabase.from('unidades').update({ nome: fNome.trim(), cnpj: fCnpj.trim(), endereco: fEndereco.trim(), responsavel: fResponsavel.trim() }).eq('id', editandoItem.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('unidades').insert({ id: `u-${Date.now()}`, nome: fNome.trim(), cnpj: fCnpj.trim(), endereco: fEndereco.trim(), responsavel: fResponsavel.trim() });
+          if (error) throw error;
+        }
+        await recarregarUnidades();
       }
       await recarregar();
       setModalTipo(null);
@@ -329,6 +338,11 @@ export default function CadastrosPage() {
 
         {/* ── Unidades ────────────────────────────────────────────── */}
         {aba === 'unidades' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-900">{unidadesPadaria.length} unidade{unidadesPadaria.length !== 1 ? 's' : ''} cadastrada{unidadesPadaria.length !== 1 ? 's' : ''}</span>
+              <BtnNovo label="Nova Unidade" onClick={() => abrirNovo('unidade')} />
+            </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {unidadesPadaria.map((u) => (
               <div key={u.id} className="bg-white rounded-xl border border-gray-200 p-5">
@@ -350,6 +364,7 @@ export default function CadastrosPage() {
                 </div>
               </div>
             ))}
+          </div>
           </div>
         )}
 
@@ -786,15 +801,17 @@ export default function CadastrosPage() {
             </>
           )}
 
-          {/* Editar Unidade da Padaria */}
+          {/* Unidade da Padaria (Novo ou Editar) */}
           {modalTipo === 'unidade' && (
             <>
-              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                <p className="text-xs text-amber-700 font-medium">{editandoItem?.nome}</p>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Nome da unidade *</label>
+                <input autoFocus type="text" value={fNome} onChange={(e) => setFNome(e.target.value)} placeholder="Ex: Unidade Centro"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">CNPJ</label>
-                <input autoFocus type="text" value={fCnpj} onChange={(e) => setFCnpj(e.target.value)} placeholder="00.000.000/0001-00"
+                <input type="text" value={fCnpj} onChange={(e) => setFCnpj(e.target.value)} placeholder="00.000.000/0001-00"
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
               </div>
               <div>
