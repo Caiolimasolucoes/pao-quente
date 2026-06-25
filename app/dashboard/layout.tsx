@@ -5,6 +5,7 @@ import { PermissoesProvider } from '@/contexts/PermissoesContext';
 import { MetasProvider } from '@/contexts/MetasContext';
 import { DateRangeProvider } from '@/contexts/DateRangeContext';
 import { SidebarProvider } from '@/contexts/SidebarContext';
+import { NotificacoesProvider } from '@/contexts/NotificacoesContext';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -13,14 +14,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <DateRangeProvider>
           <UnitProvider>
             <FormasPagamentoProvider>
-              <SidebarProvider>
-                <div className="flex h-full bg-gray-50">
-                  <Sidebar />
-                  <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                    {children}
+              <NotificacoesProvider>
+                <SidebarProvider>
+                  <div className="flex h-full bg-gray-50">
+                    <Sidebar />
+                    <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                      {children}
+                    </div>
                   </div>
-                </div>
-              </SidebarProvider>
+                </SidebarProvider>
+              </NotificacoesProvider>
             </FormasPagamentoProvider>
           </UnitProvider>
         </DateRangeProvider>

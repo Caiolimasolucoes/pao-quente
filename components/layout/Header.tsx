@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Bell, Building2, CalendarDays, X, Menu } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Bell, Building2, CalendarDays, X, Menu, AlertTriangle, Clock } from 'lucide-react';
 import { useUnit } from '@/contexts/UnitContext';
 import { useDateRange } from '@/contexts/DateRangeContext';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { useNotificacoes } from '@/contexts/NotificacoesContext';
+import { formatDate } from '@/lib/utils';
 
 const MESES_CURTO = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MESES_LONGO = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -18,13 +20,16 @@ export default function Header({ title }: HeaderProps) {
   const { filtroUnidade, setFiltroUnidade, unidades } = useUnit();
   const { mesInicio, mesFim, ano, setRange } = useDateRange();
   const { toggle } = useSidebar();
+  const { notificacoes, totalNaoLidas, marcarLida, marcarTodasLidas } = useNotificacoes();
 
-  const [open, setOpen]         = useState(false);
-  const [anoLocal, setAnoLocal] = useState(ano);
-  const [fase, setFase]         = useState<'inicio' | 'fim'>('inicio');
-  const [tempIni, setTempIni]   = useState<number | null>(null);
-  const [hover, setHover]       = useState<number | null>(null);
-  const popRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen]           = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [anoLocal, setAnoLocal]   = useState(ano);
+  const [fase, setFase]           = useState<'inicio' | 'fim'>('inicio');
+  const [tempIni, setTempIni]     = useState<number | null>(null);
+  const [hover, setHover]         = useState<number | null>(null);
+  const popRef   = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -37,6 +42,17 @@ export default function Header({ title }: HeaderProps) {
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
   }, [open]);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    function handle(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [notifOpen]);
 
   function resetPicker() {
     setFase('inicio');
@@ -202,10 +218,77 @@ export default function Header({ title }: HeaderProps) {
         </div>
 
         {/* Notificações */}
-        <button className="relative text-gray-400 hover:text-gray-600 transition-colors p-1">
-          <Bell size={18} />
-          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 rounded-full text-white text-[9px] flex items-center justify-center font-bold">2</span>
-        </button>
+        <div className="relative" ref={notifRef}>
+          <button
+            onClick={() => setNotifOpen((v) => !v)}
+            className="relative text-gray-400 hover:text-gray-600 transition-colors p-1"
+            aria-label="Notificações"
+          >
+            <Bell size={18} />
+            {totalNaoLidas > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 bg-red-500 rounded-full text-white text-[9px] flex items-center justify-center font-bold px-0.5">
+                {totalNaoLidas > 9 ? '9+' : totalNaoLidas}
+              </span>
+            )}
+          </button>
+
+          {notifOpen && (
+            <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-xl shadow-xl border border-gray-200 w-80 max-h-[420px] flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                <span className="text-sm font-semibold text-gray-900">Notificações</span>
+                <div className="flex items-center gap-2">
+                  {totalNaoLidas > 0 && (
+                    <button onClick={marcarTodasLidas} className="text-[10px] text-amber-700 font-medium hover:text-amber-900">
+                      Marcar todas como lidas
+                    </button>
+                  )}
+                  <button onClick={() => setNotifOpen(false)} className="text-gray-400 hover:text-gray-600">
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-y-auto flex-1">
+                {notificacoes.length === 0 ? (
+                  <div className="px-4 py-10 text-center text-gray-400 text-sm">
+                    <Bell size={24} className="mx-auto mb-2 opacity-30" />
+                    Nenhuma notificação pendente
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-gray-50">
+                    {notificacoes.map((n) => (
+                      <li
+                        key={n.id}
+                        onClick={() => marcarLida(n.id)}
+                        className={`px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-gray-50 transition-colors ${n.lida ? 'opacity-50' : ''}`}
+                      >
+                        <div className={`mt-0.5 flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${n.tipo === 'vencido' ? 'bg-red-100' : 'bg-amber-100'}`}>
+                          {n.tipo === 'vencido'
+                            ? <AlertTriangle size={14} className="text-red-600" />
+                            : <Clock size={14} className="text-amber-600" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            {!n.lida && <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />}
+                            <p className="text-sm font-medium text-gray-900 truncate">{n.titulo}</p>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">{n.descricao}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">Venc. {formatDate(n.vencimento)}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {notificacoes.length > 0 && (
+                <div className="px-4 py-2.5 border-t border-gray-100 text-[10px] text-gray-400 text-center">
+                  {notificacoes.filter(n => n.tipo === 'vencido').length} vencido{notificacoes.filter(n => n.tipo === 'vencido').length !== 1 ? 's' : ''} · {notificacoes.filter(n => n.tipo === 'a_vencer').length} a vencer nos próximos 7 dias
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
