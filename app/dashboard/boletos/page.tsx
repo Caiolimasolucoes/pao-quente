@@ -1,14 +1,201 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import Header from '@/components/layout/Header';
 import Modal from '@/components/ui/Modal';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { boletos, fornecedores, categoriasBoleto, unidadesPadaria } from '@/lib/mock-data';
+import { boletos, fornecedores, categoriasBoleto, categoriasCompra, unidadesPadaria } from '@/lib/mock-data';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Plus, AlertCircle, Link2, Building2 } from 'lucide-react';
+import { Plus, AlertCircle, Link2, Building2, Search, X, Truck } from 'lucide-react';
 import { useUnit } from '@/contexts/UnitContext';
 import type { StatusBoleto } from '@/types';
+
+// ── Autocomplete de Fornecedor ────────────────────────────────
+function FornecedorAutocomplete({
+  value,
+  onChange,
+  fornExtras,
+  onAddFornecedor,
+}: {
+  value: string;
+  onChange: (nome: string) => void;
+  fornExtras: { nome: string; categoria: string }[];
+  onAddFornecedor: (nome: string, categoria: string) => void;
+}) {
+  const [query, setQuery]       = useState('');
+  const [aberto, setAberto]     = useState(false);
+  const [novoMode, setNovoMode] = useState(false);
+  const [novoNome, setNovoNome] = useState('');
+  const [novaCat, setNovaCat]   = useState('Mercearia');
+  const inputRef                = useRef<HTMLInputElement>(null);
+  const containerRef            = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setAberto(false);
+      }
+    }
+    document.addEventListener('click', handle);
+    return () => document.removeEventListener('click', handle);
+  }, []);
+
+  const todosFornecedores = useMemo(() => [
+    ...fornecedores,
+    ...fornExtras.map((f, i) => ({ id: `extra-${i}`, nome: f.nome, categoria: f.categoria })),
+  ], [fornExtras]);
+
+  const resultados = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return todosFornecedores.slice(0, 8);
+    return todosFornecedores.filter((f) => f.nome.toLowerCase().includes(q)).slice(0, 8);
+  }, [query, todosFornecedores]);
+
+  function handleSelect(nome: string) {
+    onChange(nome);
+    setQuery('');
+    setAberto(false);
+  }
+
+  function handleClear() {
+    onChange('');
+    setQuery('');
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }
+
+  function handleAdd() {
+    if (!novoNome.trim()) return;
+    onAddFornecedor(novoNome.trim(), novaCat);
+    onChange(novoNome.trim());
+    setNovoMode(false);
+    setAberto(false);
+    setQuery('');
+    setNovoNome('');
+  }
+
+  if (value) {
+    return (
+      <span className="inline-flex items-center gap-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg px-3 py-2 text-sm font-medium">
+        <Truck size={14} />
+        {value}
+        <button onClick={handleClear} className="ml-1 text-amber-400 hover:text-amber-700 transition-colors">
+          <X size={12} />
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder="Digite para buscar o fornecedor…"
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setAberto(true); setNovoMode(false); }}
+          onFocus={() => setAberto(true)}
+          className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+        />
+      </div>
+
+      {aberto && (
+        <div className="absolute z-50 w-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+          {resultados.length > 0 ? (
+            <>
+              <ul className="py-1 max-h-44 overflow-y-auto">
+                {resultados.map((f, i) => (
+                  <li key={i}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleSelect(f.nome); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-amber-50 text-left transition-colors"
+                    >
+                      <Truck size={14} className="text-blue-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{f.nome}</p>
+                        <p className="text-xs text-gray-400">{f.categoria}</p>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="border-t border-gray-100 px-4 py-2">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setNovoMode(true); setAberto(false); setNovoNome(query); }}
+                  className="text-xs text-amber-700 font-medium flex items-center gap-1 hover:text-amber-900"
+                >
+                  <Plus size={12} /> Cadastrar fornecedor
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="p-4">
+              <p className="text-sm text-gray-500 mb-3">
+                Nenhum resultado para <strong>"{query}"</strong>
+              </p>
+              <button
+                onClick={(e) => { e.stopPropagation(); setNovoMode(true); setAberto(false); setNovoNome(query); }}
+                className="flex items-center gap-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 px-4 py-2 rounded-lg transition-colors"
+              >
+                <Plus size={14} /> Cadastrar fornecedor
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Painel inline — mesmo formulário do Cadastros / Fornecedores */}
+      {novoMode && (
+        <div className="mt-2 p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+              <Truck size={14} /> Cadastrar novo fornecedor
+            </p>
+            <button onClick={() => setNovoMode(false)} className="text-blue-400 hover:text-blue-700">
+              <X size={14} />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Nome do fornecedor *</label>
+              <input
+                type="text"
+                placeholder="Ex: Moinho ABC"
+                value={novoNome}
+                onChange={(e) => setNovoNome(e.target.value)}
+                autoFocus
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Categoria</label>
+              <select
+                value={novaCat}
+                onChange={(e) => setNovaCat(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                {categoriasCompra.map((c) => <option key={c.id}>{c.nome}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              onClick={handleAdd}
+              disabled={!novoNome.trim()}
+              className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 bg-blue-600 hover:bg-blue-700 transition-colors"
+            >
+              Cadastrar e selecionar
+            </button>
+            <button onClick={() => setNovoMode(false)} className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const filtrosStatus: { label: string; value: StatusBoleto | 'todos' }[] = [
   { label: 'Todos',    value: 'todos' },
@@ -29,6 +216,8 @@ export default function BoletosPage() {
   const [subCatSelecionada, setSubCat]      = useState('');
   const [catSelecionada, setCat]            = useState('');
   const [modalOpen, setModalOpen]           = useState(false);
+  const [formFornBoleto, setFormFornBoleto] = useState('');
+  const [fornExtras, setFornExtras]         = useState<{ nome: string; categoria: string }[]>([]);
 
   const lista = boletos.filter((b) => {
     const matchStatus  = filtroStatus === 'todos' || b.status === filtroStatus;
@@ -148,7 +337,7 @@ export default function BoletosPage() {
               )}
             </div>
             <button
-              onClick={() => setModalOpen(true)}
+              onClick={() => { setFormFornBoleto(''); setSubCat(''); setCat(''); setModalOpen(true); }}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg"
               style={{ backgroundColor: '#D97706' }}
             >
@@ -217,7 +406,7 @@ export default function BoletosPage() {
       </main>
 
       {/* Modal Novo Boleto */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo Boleto" size="md">
+      <Modal open={modalOpen} onClose={() => { setModalOpen(false); setFormFornBoleto(''); setSubCat(''); setCat(''); }} title="Novo Boleto" size="md">
         <div className="space-y-4">
           {/* Unidade */}
           <div>
@@ -232,14 +421,15 @@ export default function BoletosPage() {
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-medium text-gray-700">Fornecedor</label>
-              <button className="text-xs text-amber-700 font-medium flex items-center gap-1"><Plus size={12} /> Cadastrar</button>
-            </div>
-            <select className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
-              <option value="">Selecione…</option>
-              {fornecedores.map((f) => <option key={f.id}>{f.nome}</option>)}
-            </select>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Fornecedor</label>
+            <FornecedorAutocomplete
+              value={formFornBoleto}
+              onChange={setFormFornBoleto}
+              fornExtras={fornExtras}
+              onAddFornecedor={(nome, categoria) =>
+                setFornExtras((prev) => [...prev, { nome, categoria }])
+              }
+            />
           </div>
 
           {/* Subcategoria → resolve categoria pai automaticamente */}

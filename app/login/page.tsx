@@ -42,8 +42,8 @@ export default function LoginPage() {
               }}
             />
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">Pão Quente</h1>
-          <p className="text-amber-300 text-lg mb-12">Gestão Financeira</p>
+          <h1 className="text-4xl font-display text-white mb-2">Pão Quente</h1>
+          <p className="text-amber-300/80 text-base tracking-wide mb-12">Gestão Financeira</p>
           <div className="space-y-4 text-left">
             {[
               { icon: '📊', text: 'DRE e indicadores em tempo real' },
@@ -71,7 +71,7 @@ export default function LoginPage() {
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">Bem-vindo de volta</h2>
+            <h2 className="text-2xl font-display text-gray-900">Bem-vindo de volta</h2>
             <p className="text-gray-500 mt-1 text-sm">Entre com suas credenciais para acessar o sistema</p>
           </div>
 

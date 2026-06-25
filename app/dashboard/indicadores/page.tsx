@@ -9,15 +9,19 @@ import {
 } from '@/lib/mock-data';
 import { formatCurrency, formatPercent, calcPercent, calcVariation } from '@/lib/utils';
 import { useUnit } from '@/contexts/UnitContext';
+import { useMetas, DEFAULT_DESP } from '@/contexts/MetasContext';
+import { useDateRange } from '@/contexts/DateRangeContext';
+import { MetaGauge } from '@/components/ui/MetaGauge';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, ChevronRight, ChevronDown,
-  AlertTriangle, DollarSign, ShoppingBag,
+  AlertTriangle, DollarSign, ShoppingBag, Link2, Target,
 } from 'lucide-react';
 import type { DREMes } from '@/types';
+
 
 // ── Mock: histórico de preços para alerta (2i) ────────────────
 const alertasPreco = [
@@ -91,7 +95,7 @@ function KpiIndicador({
         <p className="text-xs font-medium text-gray-500">{label}</p>
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${color}`}>{icon}</div>
       </div>
-      <p className="text-2xl font-bold text-gray-900 mb-1">{formatCurrency(value)}</p>
+      <p className="text-[1.625rem] leading-none font-display italic text-gray-900 mb-1">{formatCurrency(value)}</p>
       <div className={`flex items-center gap-1 text-xs ${varColor}`}>
         <VarIcon size={12} />
         <span className="font-medium">{up ? '+' : ''}{formatPercent(variation)}</span>
@@ -103,6 +107,8 @@ function KpiIndicador({
 
 export default function IndicadoresPage() {
   const { filtroUnidade } = useUnit();
+  const { getMetaDesp, getMetaLucro, getMetaFat } = useMetas();
+  const { mesInicio, mesFim, ano: anoRange } = useDateRange();
   const [dreExpanded, setDreExpanded] = useState<Set<string>>(new Set());
   const [alertaAberto, setAlertaAberto]  = useState<string | null>(null);
 
@@ -293,76 +299,157 @@ export default function IndicadoresPage() {
           </ResponsiveContainer>
         </section>
 
-        {/* ── 2f: DRE Expandível ─────────────────────────────── */}
+        {/* ── 2f: DRE Acumulado Jan→Mês Atual ───────────────── */}
+        {/* REGRA: este bloco ignora o filtro de data — responde APENAS ao filtro de unidade */}
         <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-gray-900">DRE Expandível — Junho 2026</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Clique em + para ver subcategorias</p>
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">
+                DRE — Acumulado 2026 (Jan – {dreMensalBase.at(-1)?.mes ?? 'Jun'})
+              </h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Período fixo: janeiro até o mês atual · clique em uma linha para ver subcategorias do acumulado
+              </p>
+            </div>
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full border
+              bg-blue-50 text-blue-700 border-blue-200">
+              {filtroUnidade === '1' ? 'Centro' : filtroUnidade === '2' ? 'Bairro' : 'Consolidado'}
+            </span>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Linha</th>
-                <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-36">Valor</th>
-                <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-28">% Fat.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Faturamento */}
-              <tr className="border-b border-gray-100 bg-amber-50">
-                <td className="px-5 py-3 font-bold text-gray-900">Faturamento Total</td>
-                <td className="px-5 py-3 text-right font-bold text-gray-900 tabular-nums">{formatCurrency(dreBase.faturamentoTotal)}</td>
-                <td className="px-5 py-3 text-right font-bold text-amber-700">100%</td>
-              </tr>
-              {/* Despesas */}
-              {dreLinhas.map(linha => {
-                const val = dreBase[linha.key] as number;
-                if (val === 0) return null;
-                const catBoleto = linha.catNome ? categoriasBoleto.find(c => c.nome === linha.catNome) : undefined;
-                const subcats   = catBoleto ? distribuirSubs(val, catBoleto.subcategorias) : [];
-                const expanded  = dreExpanded.has(linha.key);
-                const pctVal    = pct(val, dreBase.faturamentoTotal);
-
-                return [
-                  <tr
-                    key={linha.key}
-                    className={`border-b border-gray-50 hover:bg-gray-50 cursor-pointer ${expanded ? 'bg-gray-50' : ''}`}
-                    onClick={() => subcats.length > 0 && toggleDre(linha.key)}
-                  >
-                    <td className="px-5 py-2.5 text-gray-700 flex items-center gap-2">
-                      {subcats.length > 0 ? (
-                        expanded
-                          ? <ChevronDown size={14} className="text-amber-600 flex-shrink-0" />
-                          : <ChevronRight size={14} className="text-gray-400 flex-shrink-0" />
-                      ) : <span className="w-3.5 inline-block" />}
-                      {linha.label}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" style={{ minWidth: `${200 + dreMensalBase.length * 112 + 128 + 90}px` }}>
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide" style={{ minWidth: 200 }}>Linha DRE</th>
+                  {dreMensalBase.map(m => (
+                    <th key={m.mes} className="text-right px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide" style={{ minWidth: 110 }}>{m.mes}</th>
+                  ))}
+                  <th className="text-right px-5 py-2.5 text-xs font-semibold text-amber-700 uppercase tracking-wide bg-amber-50/60" style={{ minWidth: 128 }}>Acumulado</th>
+                  <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide" style={{ minWidth: 88 }}>Meta %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Faturamento */}
+                <tr className="border-b border-gray-100 bg-amber-50">
+                  <td className="px-5 py-3 font-bold text-gray-900">Faturamento Total</td>
+                  {dreMensalBase.map(m => (
+                    <td key={m.mes} className="px-3 py-3 text-right font-medium text-gray-800 tabular-nums text-xs whitespace-nowrap">
+                      {formatCurrency(m.faturamentoTotal)}
                     </td>
-                    <td className="px-5 py-2.5 text-right text-gray-700 tabular-nums">{formatCurrency(val)}</td>
-                    <td className="px-5 py-2.5 text-right text-gray-500 tabular-nums">{formatPercent(pctVal)}</td>
-                  </tr>,
-                  ...(expanded ? subcats.map(s => (
-                    <tr key={`${linha.key}-${s.nome}`} className="border-b border-gray-50 bg-gray-50/60">
-                      <td className="pl-10 pr-5 py-2 text-xs text-gray-500">{s.nome}</td>
-                      <td className="px-5 py-2 text-right text-xs text-gray-500 tabular-nums">{formatCurrency(s.valor)}</td>
-                      <td className="px-5 py-2 text-right text-xs text-gray-400 tabular-nums">{formatPercent(pct(s.valor, dreBase.faturamentoTotal))}</td>
-                    </tr>
-                  )) : []),
-                ];
-              })}
-              {/* Total despesas */}
-              <tr className="border-t-2 border-gray-200 bg-red-50">
-                <td className="px-5 py-3 font-semibold text-gray-900 pl-8">Total de Despesas</td>
-                <td className="px-5 py-3 text-right font-semibold text-red-700 tabular-nums">{formatCurrency(dreBase.despesasTotal)}</td>
-                <td className="px-5 py-3 text-right font-semibold text-red-700 tabular-nums">{formatPercent(pct(dreBase.despesasTotal, dreBase.faturamentoTotal))}</td>
-              </tr>
-              {/* Lucro */}
-              <tr className={`border-t-2 border-gray-200 ${dreBase.lucro >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                <td className="px-5 py-3 font-bold text-gray-900">Resultado</td>
-                <td className={`px-5 py-3 text-right font-bold tabular-nums ${dreBase.lucro >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatCurrency(dreBase.lucro)}</td>
-                <td className={`px-5 py-3 text-right font-bold tabular-nums ${dreBase.lucro >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatPercent(pct(dreBase.lucro, dreBase.faturamentoTotal))}</td>
-              </tr>
-            </tbody>
-          </table>
+                  ))}
+                  <td className="px-5 py-3 text-right font-bold text-amber-700 tabular-nums bg-amber-50/60 whitespace-nowrap">
+                    {formatCurrency(dreMensalBase.reduce((a, m) => a + m.faturamentoTotal, 0))}
+                  </td>
+                  <td className="px-3 py-3 text-center text-gray-300 text-xs">—</td>
+                </tr>
+                {/* Despesas linha a linha */}
+                {dreLinhas.map(linha => {
+                  const vals   = dreMensalBase.map(m => m[linha.key] as number);
+                  const total  = vals.reduce((a, v) => a + v, 0);
+                  if (total === 0) return null;
+                  const catBoleto = linha.catNome ? categoriasBoleto.find(c => c.nome === linha.catNome) : undefined;
+                  const subcats   = catBoleto ? distribuirSubs(total, catBoleto.subcategorias) : [];
+                  const expanded  = dreExpanded.has(linha.key);
+
+                  // Meta % — compara com % do faturamento acumulado
+                  const unidKey16 = filtroUnidade === '1' ? '1' : filtroUnidade === '2' ? '2' : 'todas';
+                  const totalFatAcum = dreMensalBase.reduce((a, m) => a + m.faturamentoTotal, 0);
+                  const metaPct = getMetaDesp(linha.key, 2026, unidKey16);
+                  const atualPct = totalFatAcum > 0 ? (total / totalFatAcum) * 100 : 0;
+                  const metaCell = metaPct !== null ? (() => {
+                    const excedeu   = atualPct > metaPct;
+                    const proximo   = !excedeu && atualPct >= metaPct * 0.85;
+                    const [bg, fg]  = excedeu   ? ['bg-red-50',     'text-red-700']
+                                    : proximo   ? ['bg-amber-50',   'text-amber-700']
+                                    :             ['bg-emerald-50', 'text-emerald-700'];
+                    const sinal = excedeu ? '↑' : '✓';
+                    return (
+                      <td className={`px-3 py-2.5 text-center text-xs font-semibold tabular-nums ${bg} ${fg} whitespace-nowrap`}>
+                        <div className="flex flex-col items-center leading-tight">
+                          <span>{atualPct.toFixed(1)}%</span>
+                          <span className="text-[9px] opacity-70 font-normal">{sinal} meta {metaPct}%</span>
+                        </div>
+                      </td>
+                    );
+                  })() : <td className="px-3 py-2.5 text-center text-gray-300 text-xs">—</td>;
+
+                  return [
+                    <tr
+                      key={linha.key}
+                      className={`border-b border-gray-50 hover:bg-gray-50 ${subcats.length > 0 ? 'cursor-pointer' : ''} ${expanded ? 'bg-gray-50' : ''}`}
+                      onClick={() => subcats.length > 0 && toggleDre(linha.key)}
+                    >
+                      <td className="px-5 py-2.5 text-gray-700">
+                        <span className="flex items-center gap-2">
+                          {subcats.length > 0 ? (
+                            expanded
+                              ? <ChevronDown size={14} className="text-amber-600 flex-shrink-0" />
+                              : <ChevronRight size={14} className="text-gray-400 flex-shrink-0" />
+                          ) : <span className="w-3.5 inline-block" />}
+                          {linha.label}
+                          {linha.key === 'compraInsumos' && (
+                            <span className="inline-flex items-center gap-1 text-xs bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full ring-1 ring-purple-300/60 font-normal whitespace-nowrap">
+                              <Link2 size={9} /> via boletos
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      {vals.map((v, i) => (
+                        <td key={i} className="px-3 py-2.5 text-right text-gray-600 tabular-nums text-xs whitespace-nowrap">
+                          {formatCurrency(v)}
+                        </td>
+                      ))}
+                      <td className="px-5 py-2.5 text-right font-semibold text-gray-800 tabular-nums bg-amber-50/30 whitespace-nowrap">
+                        {formatCurrency(total)}
+                      </td>
+                      {metaCell}
+                    </tr>,
+                    ...(expanded ? subcats.map(s => (
+                      <tr key={`${linha.key}-${s.nome}`} className="border-b border-gray-50 bg-gray-50/60">
+                        <td className="pl-10 pr-5 py-2 text-xs text-gray-500">{s.nome}</td>
+                        <td colSpan={dreMensalBase.length} className="px-3 py-2 text-xs text-gray-400 text-center italic">distribuição estimada do acumulado</td>
+                        <td className="px-5 py-2 text-right text-xs text-gray-600 tabular-nums font-medium bg-amber-50/30">
+                          {formatCurrency(s.valor)}
+                        </td>
+                        <td className="px-3 py-2 text-center text-gray-300 text-xs">—</td>
+                      </tr>
+                    )) : []),
+                  ];
+                })}
+                {/* Total despesas */}
+                <tr className="border-t-2 border-gray-200 bg-red-50">
+                  <td className="px-5 py-3 font-semibold text-gray-900 pl-8">Total de Despesas</td>
+                  {dreMensalBase.map(m => (
+                    <td key={m.mes} className="px-3 py-3 text-right font-medium text-red-700 tabular-nums text-xs whitespace-nowrap">
+                      {formatCurrency(m.despesasTotal)}
+                    </td>
+                  ))}
+                  <td className="px-5 py-3 text-right font-bold text-red-700 tabular-nums bg-red-50/60 whitespace-nowrap">
+                    {formatCurrency(dreMensalBase.reduce((a, m) => a + m.despesasTotal, 0))}
+                  </td>
+                  <td className="px-3 py-3 text-center text-gray-300 text-xs">—</td>
+                </tr>
+                {/* Resultado */}
+                <tr className="border-t-2 border-gray-200">
+                  <td className="px-5 py-3 font-bold text-gray-900 bg-emerald-50">Resultado</td>
+                  {dreMensalBase.map(m => (
+                    <td key={m.mes} className={`px-3 py-3 text-right font-bold tabular-nums text-xs whitespace-nowrap ${m.lucro >= 0 ? 'text-emerald-700 bg-emerald-50/60' : 'text-red-700 bg-red-50/60'}`}>
+                      {formatCurrency(m.lucro)}
+                    </td>
+                  ))}
+                  {(() => {
+                    const totalLucro = dreMensalBase.reduce((a, m) => a + m.lucro, 0);
+                    return (
+                      <td className={`px-5 py-3 text-right font-bold tabular-nums whitespace-nowrap ${totalLucro >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-red-700 bg-red-50'}`}>
+                        {formatCurrency(totalLucro)}
+                      </td>
+                    );
+                  })()}
+                  <td className="px-3 py-3 text-center text-gray-300 text-xs">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
 
         {/* ── 2g + 2h: Pizza e Curva ABC A+B ────────────────── */}
@@ -431,6 +518,166 @@ export default function IndicadoresPage() {
             </table>
           </section>
         </div>
+
+        {/* ── Gauges de Metas — Grupo 1 (Anuais) + Grupo 2 (Período) ── */}
+        {(() => {
+          const MC = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+          const unidKey = filtroUnidade === '1' ? '1' : filtroUnidade === '2' ? '2' : 'todas';
+          const nMeses  = mesFim - mesInicio + 1;
+          const isAnual = nMeses >= 12;
+          const periodoLabel = mesInicio === mesFim
+            ? `${MC[mesInicio]} ${anoRange}`
+            : `${MC[mesInicio]}–${MC[mesFim]} ${anoRange}`;
+          const tipoLabel = nMeses === 1 ? 'mensal' : isAnual ? 'anual' : `${nMeses} meses`;
+
+          // ── GRUPO 1: Metas Anuais (ignora filtro de data) ──────────
+          const realizadoFatAnual   = dreMensalBase.reduce((a, m) => a + m.faturamentoTotal, 0);
+          const realizadoLucroAnual = dreMensalBase.reduce((a, m) => a + m.lucro, 0);
+          const metaFatAnual   = getMetaFat('anual', anoRange, unidKey);
+          const metaLucroAnual = getMetaLucro('anual', anoRange, unidKey);
+
+          // Despesas: acumulado do ano / faturamento acumulado
+          const despCatsAnual = DEFAULT_DESP.map((d) => {
+            const metaPct  = getMetaDesp(d.categoriaKey, anoRange, unidKey);
+            const despTotal = dreMensalBase.reduce(
+              (a, m) => a + ((m[d.categoriaKey as keyof typeof m] as number) ?? 0), 0
+            );
+            const atualPct = realizadoFatAnual > 0 ? (despTotal / realizadoFatAnual) * 100 : 0;
+            return { ...d, metaPct, atualPct };
+          }).filter((d) => d.metaPct !== null && d.metaPct! > 0);
+
+          // ── GRUPO 2: Metas do Período (segue filtro de data) ───────
+          const mesesRange    = dreMensalBase.filter((_, i) => i >= mesInicio && i <= Math.min(mesFim, dreMensalBase.length - 1));
+          const realizadoFat  = mesesRange.reduce((a, m) => a + m.faturamentoTotal, 0);
+          const realizadoLucro = mesesRange.reduce((a, m) => a + m.lucro, 0);
+          const metaFatPeriodo   = isAnual ? getMetaFat('anual', anoRange, unidKey)   : getMetaFat('mensal', anoRange, unidKey)   * nMeses;
+          const metaLucroPeriodo = isAnual ? getMetaLucro('anual', anoRange, unidKey) : getMetaLucro('mensal', anoRange, unidKey) * nMeses;
+
+          const g1Fat   = metaFatAnual > 0;
+          const g1Lucro = metaLucroAnual > 0;
+          const g1Desp  = despCatsAnual.length > 0;
+          const g2Fat   = metaFatPeriodo > 0;
+          const g2Lucro = metaLucroPeriodo > 0;
+
+          if (!g1Fat && !g1Lucro && !g1Desp && !g2Fat && !g2Lucro) return null;
+
+          return (
+            <section className="bg-white rounded-xl border border-gray-200 p-5">
+              {/* Título da seção */}
+              <div className="flex items-center gap-2 mb-7">
+                <Target size={15} className="text-amber-600" />
+                <h2 className="text-sm font-semibold text-gray-900">Acompanhamento de Metas</h2>
+              </div>
+
+              {/* ════════ GRUPO 1 — METAS ANUAIS ════════ */}
+              {(g1Fat || g1Lucro || g1Desp) && (
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex-1 h-px bg-gray-100" />
+                    <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                      Metas Anuais — {anoRange}
+                    </span>
+                    <div className="flex-1 h-px bg-gray-100" />
+                  </div>
+                  <p className="text-xs text-gray-400 text-center mb-6">
+                    Não se altera ao mudar o período do filtro · acumulado Jan–{MC[dreMensalBase.length - 1]} vs meta anual
+                  </p>
+
+                  {/* Fat + Lucro anuais */}
+                  {(g1Fat || g1Lucro) && (
+                    <div className="flex flex-wrap gap-6 justify-around mb-6">
+                      {g1Fat && (
+                        <MetaGauge
+                          titulo={`Faturamento Acumulado ${anoRange}`}
+                          valor={realizadoFatAnual}
+                          meta={metaFatAnual}
+                          tipo="faturamento"
+                        />
+                      )}
+                      {g1Lucro && (
+                        <MetaGauge
+                          titulo={`Lucro Acumulado ${anoRange}`}
+                          valor={realizadoLucroAnual}
+                          meta={metaLucroAnual}
+                          tipo="lucro"
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {/* Despesas anuais */}
+                  {g1Desp && (
+                    <div className={(g1Fat || g1Lucro) ? 'border-t border-gray-100 pt-6' : ''}>
+                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-5 text-center">
+                        Despesas por Categoria — % máx. do faturamento acumulado
+                      </p>
+                      <div className="flex flex-wrap gap-6 justify-around">
+                        {despCatsAnual.map((d) => (
+                          <MetaGauge
+                            key={d.categoriaKey}
+                            titulo={d.categoriaNome}
+                            valor={d.atualPct}
+                            meta={d.metaPct!}
+                            tipo="despesa"
+                            unidade="percent"
+                          />
+                        ))}
+                      </div>
+                      <div className="mt-5 flex items-center gap-4 text-xs text-gray-400 flex-wrap justify-center">
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Dentro da meta</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Próximo do limite (≥85%)</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Acima da meta</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ════════ GRUPO 2 — METAS DO PERÍODO ════════ */}
+              {(g2Fat || g2Lucro) && (
+                <div className={(g1Fat || g1Lucro || g1Desp) ? 'border-t-2 border-dashed border-gray-200 pt-8' : ''}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex-1 h-px bg-amber-100" />
+                    <span className="text-[11px] font-bold text-amber-700 uppercase tracking-widest px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-200">
+                      Metas do Período — {periodoLabel}
+                    </span>
+                    <div className="flex-1 h-px bg-amber-100" />
+                  </div>
+                  <p className="text-xs text-gray-400 text-center mb-6">
+                    {tipoLabel === 'mensal'
+                      ? 'Meta mensal · muda conforme o período selecionado no filtro'
+                      : `Meta mensal × ${nMeses} · muda conforme o período selecionado no filtro`}
+                  </p>
+
+                  <div className="flex flex-wrap gap-6 justify-around">
+                    {g2Fat && (
+                      <MetaGauge
+                        titulo={`Faturamento · ${periodoLabel}`}
+                        valor={realizadoFat}
+                        meta={metaFatPeriodo}
+                        tipo="faturamento"
+                      />
+                    )}
+                    {g2Lucro && (
+                      <MetaGauge
+                        titulo={`Lucro · ${periodoLabel}`}
+                        valor={realizadoLucro}
+                        meta={metaLucroPeriodo}
+                        tipo="lucro"
+                      />
+                    )}
+                  </div>
+
+                  <div className="mt-5 flex items-center gap-4 text-xs text-gray-400 flex-wrap justify-center">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Atingindo (≥85%)</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Em andamento (50–85%)</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Abaixo do esperado</span>
+                  </div>
+                </div>
+              )}
+            </section>
+          );
+        })()}
 
         {/* ── 2i: Alerta de alta de preços ──────────────────── */}
         <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">

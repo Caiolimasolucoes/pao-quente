@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import Header from '@/components/layout/Header';
 import { produtos, fornecedores, categoriasCompra, categoriasBoleto, unidades, unidadesPadaria } from '@/lib/mock-data';
-import { Plus, Pencil, Building2, X, Check, CreditCard } from 'lucide-react';
+import { Plus, Pencil, Building2, X, Check, CreditCard, Target, Save } from 'lucide-react';
 import { useFormasPagamento } from '@/contexts/FormasPagamentoContext';
+import { useMetas, DEFAULT_DESP } from '@/contexts/MetasContext';
+import type { MetaFaturamento, MetaDespesaCategoria, MetaLucro } from '@/contexts/MetasContext';
 
-type Aba = 'unidades' | 'produtos' | 'fornecedores' | 'cat-compras' | 'cat-boletos' | 'unid-medida' | 'pagamento';
+type Aba = 'unidades' | 'produtos' | 'fornecedores' | 'cat-compras' | 'cat-boletos' | 'unid-medida' | 'pagamento' | 'metas';
 
 const abas: { key: Aba; label: string }[] = [
   { key: 'unidades',    label: 'Unidades' },
@@ -16,6 +18,7 @@ const abas: { key: Aba; label: string }[] = [
   { key: 'cat-boletos', label: 'Cat. Boletos' },
   { key: 'unid-medida', label: 'Und. Medida' },
   { key: 'pagamento',   label: 'Formas Pgto.' },
+  { key: 'metas',       label: 'Metas' },
 ];
 
 const CORES_PRESET = [
@@ -37,6 +40,24 @@ function TableWrapper({ children, label }: { children: React.ReactNode; label: s
   );
 }
 
+const TIPOS_FAT: { tipo: MetaFaturamento['tipo']; label: string }[] = [
+  { tipo: 'diario',  label: 'Diário' },
+  { tipo: 'semanal', label: 'Semanal' },
+  { tipo: 'mensal',  label: 'Mensal' },
+  { tipo: 'anual',   label: 'Anual' },
+];
+
+const TIPOS_LUCRO: { tipo: MetaLucro['tipo']; label: string }[] = [
+  { tipo: 'mensal', label: 'Mensal' },
+  { tipo: 'anual',  label: 'Anual' },
+];
+
+const UNIDADES_OPT: { value: 'todas' | '1' | '2'; label: string }[] = [
+  { value: 'todas', label: 'Todas as unidades' },
+  { value: '1',     label: 'Centro' },
+  { value: '2',     label: 'Bairro' },
+];
+
 export default function CadastrosPage() {
   const [aba, setAba] = useState<Aba>('unidades');
   const [catExpand, setCatExpand] = useState<string | null>(null);
@@ -44,6 +65,90 @@ export default function CadastrosPage() {
   const [novaForma, setNovaForma] = useState('');
   const [novaCor, setNovaCor] = useState('#10B981');
   const [adicionando, setAdicionando] = useState(false);
+
+  // ── Metas state ───────────────────────────────────────────────
+  const { metasFaturamento, metasDespesa, metasLucro, salvarMetasFaturamento, salvarMetasDespesa, salvarMetasLucro } = useMetas();
+
+  const [anoFat,    setAnoFat]    = useState(2026);
+  const [unidFat,   setUnidFat]   = useState<'todas'|'1'|'2'>('todas');
+  const [draftFat,  setDraftFat]  = useState<Record<string, string>>({});
+  const [savedFat,  setSavedFat]  = useState(false);
+
+  const [anoDesp,   setAnoDesp]   = useState(2026);
+  const [unidDesp,  setUnidDesp]  = useState<'todas'|'1'|'2'>('todas');
+  const [draftDesp, setDraftDesp] = useState<Record<string, string>>({});
+  const [savedDesp, setSavedDesp] = useState(false);
+
+  const [anoLucro,   setAnoLucro]   = useState(2026);
+  const [unidLucro,  setUnidLucro]  = useState<'todas'|'1'|'2'>('todas');
+  const [draftLucro, setDraftLucro] = useState<Record<string, string>>({});
+  const [savedLucro, setSavedLucro] = useState(false);
+
+  function getValFat(tipo: MetaFaturamento['tipo']) {
+    const key = `${tipo}-${anoFat}-${unidFat}`;
+    if (key in draftFat) return draftFat[key];
+    return String(metasFaturamento.find((m) => m.tipo === tipo && m.ano === anoFat && m.unidadeId === unidFat)?.valor ?? '');
+  }
+
+  function setValFat(tipo: MetaFaturamento['tipo'], val: string) {
+    setDraftFat((p) => ({ ...p, [`${tipo}-${anoFat}-${unidFat}`]: val }));
+    setSavedFat(false);
+  }
+
+  function handleSalvarFat() {
+    const base = metasFaturamento.filter((m) => !(m.ano === anoFat && m.unidadeId === unidFat));
+    const novas: MetaFaturamento[] = TIPOS_FAT.map(({ tipo }, i) => {
+      const key = `${tipo}-${anoFat}-${unidFat}`;
+      const v = parseFloat(draftFat[key] ?? String(metasFaturamento.find((m) => m.tipo === tipo && m.ano === anoFat && m.unidadeId === unidFat)?.valor ?? 0));
+      return { id: `fat-${anoFat}-${unidFat}-${tipo}-${i}`, tipo, valor: isNaN(v) ? 0 : v, ano: anoFat, unidadeId: unidFat };
+    });
+    salvarMetasFaturamento([...base, ...novas]);
+    setSavedFat(true);
+  }
+
+  function getValDesp(categoriaKey: string) {
+    const key = `${categoriaKey}-${anoDesp}-${unidDesp}`;
+    if (key in draftDesp) return draftDesp[key];
+    return String(metasDespesa.find((m) => m.categoriaKey === categoriaKey && m.ano === anoDesp && m.unidadeId === unidDesp)?.percentualMax ?? '');
+  }
+
+  function setValDesp(categoriaKey: string, val: string) {
+    setDraftDesp((p) => ({ ...p, [`${categoriaKey}-${anoDesp}-${unidDesp}`]: val }));
+    setSavedDesp(false);
+  }
+
+  function handleSalvarDesp() {
+    const base = metasDespesa.filter((m) => !(m.ano === anoDesp && m.unidadeId === unidDesp));
+    const novas: MetaDespesaCategoria[] = DEFAULT_DESP.map((d) => {
+      const key = `${d.categoriaKey}-${anoDesp}-${unidDesp}`;
+      const v = parseFloat(draftDesp[key] ?? String(metasDespesa.find((m) => m.categoriaKey === d.categoriaKey && m.ano === anoDesp && m.unidadeId === unidDesp)?.percentualMax ?? d.percentualMax));
+      return { ...d, percentualMax: isNaN(v) ? d.percentualMax : v, ano: anoDesp, unidadeId: unidDesp };
+    });
+    salvarMetasDespesa([...base, ...novas]);
+    setSavedDesp(true);
+  }
+
+  function getValLucro(tipo: MetaLucro['tipo']) {
+    const key = `${tipo}-${anoLucro}-${unidLucro}`;
+    if (key in draftLucro) return draftLucro[key];
+    return String(metasLucro.find((m) => m.tipo === tipo && m.ano === anoLucro && m.unidadeId === unidLucro)?.valor ?? '');
+  }
+
+  function setValLucro(tipo: MetaLucro['tipo'], val: string) {
+    setDraftLucro((p) => ({ ...p, [`${tipo}-${anoLucro}-${unidLucro}`]: val }));
+    setSavedLucro(false);
+  }
+
+  function handleSalvarLucro() {
+    const base = metasLucro.filter((m) => !(m.ano === anoLucro && m.unidadeId === unidLucro));
+    const novas: MetaLucro[] = TIPOS_LUCRO.map(({ tipo }, i) => {
+      const key = `${tipo}-${anoLucro}-${unidLucro}`;
+      const v = parseFloat(draftLucro[key] ?? String(metasLucro.find((m) => m.tipo === tipo && m.ano === anoLucro && m.unidadeId === unidLucro)?.valor ?? 0));
+      return { id: `lucro-${anoLucro}-${unidLucro}-${tipo}-${i}`, tipo, valor: isNaN(v) ? 0 : v, ano: anoLucro, unidadeId: unidLucro };
+    });
+    salvarMetasLucro([...base, ...novas]);
+    setSavedLucro(true);
+  }
 
   return (
     <>
@@ -333,6 +438,187 @@ export default function CadastrosPage() {
             <div className="flex items-center gap-2 text-xs text-gray-400 px-1">
               <Check size={12} className="text-emerald-500" />
               <span>As formas <strong className="text-gray-600">ativas</strong> aparecem automaticamente nos campos de lançamento de faturamento.</span>
+            </div>
+          </div>
+        )}
+
+        {/* ── Metas ─────────────────────────────────────────────── */}
+        {aba === 'metas' && (
+          <div className="space-y-6">
+
+            {/* Metas de Faturamento */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-2">
+                  <Target size={15} className="text-amber-600" />
+                  <span className="text-sm font-semibold text-gray-900">Metas de Faturamento</span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select value={anoFat} onChange={(e) => { setAnoFat(Number(e.target.value)); setSavedFat(false); setDraftFat({}); }}
+                    className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+                    {[2024,2025,2026,2027].map((a) => <option key={a}>{a}</option>)}
+                  </select>
+                  <select value={unidFat} onChange={(e) => { setUnidFat(e.target.value as 'todas'|'1'|'2'); setSavedFat(false); setDraftFat({}); }}
+                    className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+                    {UNIDADES_OPT.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tipo</th>
+                    <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-56">Meta (R$)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {TIPOS_FAT.map(({ tipo, label }) => (
+                    <tr key={tipo} className="hover:bg-gray-50">
+                      <td className="px-5 py-3 text-gray-700 font-medium">{label}</td>
+                      <td className="px-5 py-3">
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">R$</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={100}
+                            value={getValFat(tipo)}
+                            onChange={(e) => setValFat(tipo, e.target.value)}
+                            className="w-full pl-8 pr-3 py-2 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 tabular-nums"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+                {savedFat && <span className="text-xs text-emerald-600 flex items-center gap-1"><Check size={12} /> Metas salvas com sucesso</span>}
+                {!savedFat && <span />}
+                <button onClick={handleSalvarFat}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg"
+                  style={{ backgroundColor: '#D97706' }}>
+                  <Save size={13} /> Salvar Metas de Faturamento
+                </button>
+              </div>
+            </div>
+
+            {/* Metas de Despesa por Categoria DRE */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-2">
+                  <Target size={15} className="text-red-500" />
+                  <span className="text-sm font-semibold text-gray-900">Metas de Despesa por Categoria DRE</span>
+                  <span className="text-xs text-gray-400">— % máximo do faturamento</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select value={anoDesp} onChange={(e) => { setAnoDesp(Number(e.target.value)); setSavedDesp(false); setDraftDesp({}); }}
+                    className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+                    {[2024,2025,2026,2027].map((a) => <option key={a}>{a}</option>)}
+                  </select>
+                  <select value={unidDesp} onChange={(e) => { setUnidDesp(e.target.value as 'todas'|'1'|'2'); setSavedDesp(false); setDraftDesp({}); }}
+                    className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+                    {UNIDADES_OPT.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoria DRE</th>
+                    <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-44">Meta máxima (%)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {DEFAULT_DESP.map((d) => (
+                    <tr key={d.categoriaKey} className="hover:bg-gray-50">
+                      <td className="px-5 py-3 text-gray-700 font-medium">{d.categoriaNome}</td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2 justify-end">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.5}
+                            value={getValDesp(d.categoriaKey)}
+                            onChange={(e) => setValDesp(d.categoriaKey, e.target.value)}
+                            className="w-24 px-3 py-2 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 tabular-nums"
+                          />
+                          <span className="text-gray-400 text-sm font-medium">%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+                <p className="text-xs text-gray-400">Exemplo: Insumos = 40% significa que o gasto não deve ultrapassar 40% do faturamento</p>
+                <div className="flex items-center gap-3">
+                  {savedDesp && <span className="text-xs text-emerald-600 flex items-center gap-1"><Check size={12} /> Salvo</span>}
+                  <button onClick={handleSalvarDesp}
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg"
+                    style={{ backgroundColor: '#D97706' }}>
+                    <Save size={13} /> Salvar Metas de Despesa
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Metas de Lucro */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-2">
+                  <Target size={15} className="text-emerald-600" />
+                  <span className="text-sm font-semibold text-gray-900">Metas de Lucro</span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select value={anoLucro} onChange={(e) => { setAnoLucro(Number(e.target.value)); setSavedLucro(false); setDraftLucro({}); }}
+                    className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+                    {[2024,2025,2026,2027].map((a) => <option key={a}>{a}</option>)}
+                  </select>
+                  <select value={unidLucro} onChange={(e) => { setUnidLucro(e.target.value as 'todas'|'1'|'2'); setSavedLucro(false); setDraftLucro({}); }}
+                    className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+                    {UNIDADES_OPT.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tipo</th>
+                    <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-56">Meta (R$)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {TIPOS_LUCRO.map(({ tipo, label }) => (
+                    <tr key={tipo} className="hover:bg-gray-50">
+                      <td className="px-5 py-3 text-gray-700 font-medium">{label}</td>
+                      <td className="px-5 py-3">
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">R$</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={100}
+                            value={getValLucro(tipo)}
+                            onChange={(e) => setValLucro(tipo, e.target.value)}
+                            className="w-full pl-8 pr-3 py-2 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 tabular-nums"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+                {savedLucro && <span className="text-xs text-emerald-600 flex items-center gap-1"><Check size={12} /> Metas salvas com sucesso</span>}
+                {!savedLucro && <span />}
+                <button onClick={handleSalvarLucro}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg"
+                  style={{ backgroundColor: '#D97706' }}>
+                  <Save size={13} /> Salvar Metas de Lucro
+                </button>
+              </div>
             </div>
           </div>
         )}

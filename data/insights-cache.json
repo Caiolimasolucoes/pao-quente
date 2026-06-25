@@ -1,0 +1,55 @@
+{
+  "geradoEm": "2026-06-25T13:43:57.995Z",
+  "fonte": "mock",
+  "insights": [
+    {
+      "id": "1",
+      "tipo": "alerta",
+      "titulo": "Folha de pagamento acima do ideal — Unidade Centro",
+      "descricao": "A folha da Unidade Centro em Junho representou 21,6% do faturamento real (R$ 3.950 de R$ 18.300). O ideal para o setor é manter abaixo de 18%. Revise a escala ou aumente o faturamento desta unidade.",
+      "valor": "21,6% do faturamento",
+      "categoria": "Recursos Humanos"
+    },
+    {
+      "id": "2",
+      "tipo": "alerta",
+      "titulo": "2 boletos vencidos em aberto",
+      "descricao": "Simples Nacional (R$ 1.950) e Contabilidade (R$ 350) estão vencidos. Total em atraso: R$ 2.300. Regularize para evitar multas e juros.",
+      "valor": "R$ 2.300 em atraso",
+      "categoria": "Pagamentos"
+    },
+    {
+      "id": "3",
+      "tipo": "atencao",
+      "titulo": "CMV acima do limite — consolidado",
+      "descricao": "O custo de insumos em Junho foi de R$ 12.800, representando 41,2% do faturamento real (R$ 31.100). O ideal para padarias é abaixo de 40%. Unidade Bairro tem CMV de 41,4% — monitore.",
+      "valor": "41,2% do faturamento",
+      "categoria": "Custos"
+    },
+    {
+      "id": "4",
+      "tipo": "atencao",
+      "titulo": "Unidade Centro tem custo de pessoal 4 p.p. acima da Unidade Bairro",
+      "descricao": "Custo de pessoal sobre faturamento: Centro 21,6% vs. Bairro 19,9%. A diferença pode indicar escala maior ou ineficiência no Centro — vale comparar o volume de vendas por funcionário.",
+      "valor": "Δ 4 p.p.",
+      "categoria": "Comparativo Unidades"
+    },
+    {
+      "id": "5",
+      "tipo": "positivo",
+      "titulo": "Faturamento consolidado em crescimento",
+      "descricao": "O faturamento total de Junho (R$ 32.700) ficou 12% acima de Janeiro (R$ 29.200). As duas unidades cresceram — Unidade Bairro cresceu 12,5%, ligeiramente acima da Centro (+11,6%).",
+      "valor": "+12% vs Janeiro",
+      "categoria": "Faturamento"
+    },
+    {
+      "id": "6",
+      "tipo": "positivo",
+      "titulo": "Curva ABC: Farinha de Trigo e Biscoito concentram 40% das compras",
+      "descricao": "Estes dois itens classe A somam R$ 1.080 no mês. Negociar volume com Moinho Taquariense e Biscoito Gabriel pode gerar economias relevantes. São os itens onde vale priorizar pesquisa de preço.",
+      "valor": "40% das compras",
+      "categoria": "Compras"
+    }
+  ],
+  "analise": "**Análise do período — Junho 2026 · Consolidado (2 unidades)**\n\nO mês de Junho apresentou faturamento consolidado de **R$ 32.700**, com a Unidade Centro contribuindo com R$ 19.200 (58,7%) e a Unidade Bairro com R$ 13.500 (41,3%). Ambas cresceram em relação a Janeiro, o que é um sinal positivo de tração do negócio.\n\n**Comparativo entre unidades:**\n\nA Unidade Bairro surpreende positivamente: com faturamento 30% menor que o Centro, seu lucro (R$ 1.840) representa **14,4% de margem líquida** — enquanto o Centro ficou em **10,8%**. Isso indica que a Bairro opera com estrutura de custos mais enxuta. Entender o que a Bairro faz diferente pode ajudar a otimizar o Centro.\n\n**Pontos de atenção:**\n\nO **custo de insumos em 41,2%** do faturamento real está ligeiramente acima do ideal de 40%. Farinha de Trigo e Biscoito são os itens classe A — merecem atenção na negociação. Os **2 boletos vencidos** (Simples Nacional e Contabilidade) precisam de regularização urgente.\n\n**O que está bem:**\n\nA curva de faturamento é ascendente desde Janeiro. A Unidade Bairro demonstra boa eficiência operacional. O crescimento de 12% no consolidado é saudável.\n\n**Recomendação para Julho:**\n\nRegularizar os boletos vencidos. Negociar volume com os 2 principais fornecedores (Moinho Taquariense e Tirol). Analisar a estrutura de custos do Centro tomando a Bairro como referência."
+}

@@ -4,8 +4,10 @@ import { useState } from 'react';
 import Header from '@/components/layout/Header';
 import Modal from '@/components/ui/Modal';
 import { usuarios } from '@/lib/mock-data';
-import { Plus, Shield, UserCheck, UserX, Eye, EyeOff, Building2, History } from 'lucide-react';
+import { Plus, Shield, UserCheck, UserX, Eye, EyeOff, Building2, History, PlayCircle } from 'lucide-react';
 import type { PerfilUsuario } from '@/types';
+import { usePermissoes, TODAS_ABAS } from '@/contexts/PermissoesContext';
+import { navItems } from '@/components/layout/Sidebar';
 
 const perfilConfig: Record<PerfilUsuario, { color: string; desc: string }> = {
   Administrador:      { color: 'bg-purple-50 text-purple-700 ring-1 ring-purple-600/20', desc: 'Acesso total ao sistema' },
@@ -24,9 +26,33 @@ function initials(nome: string) {
 }
 
 export default function UsuariosPage() {
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen, setModalOpen]       = useState(false);
+  const [nomeNovoUser, setNomeNovoUser] = useState('');
+  const [abasSel, setAbasSel]           = useState<string[]>(TODAS_ABAS);
+  const [pResFinanceiro, setPResFinanceiro] = useState(true);
+  const [pResCompras, setPResCompras]   = useState(true);
+  const { setPermissoes } = usePermissoes();
 
   const ativos = usuarios.filter((u) => u.ativo).length;
+
+  function toggleAba(href: string) {
+    setAbasSel((prev) =>
+      prev.includes(href) ? prev.filter((a) => a !== href) : [...prev, href],
+    );
+  }
+
+  function handleAbrir() {
+    setNomeNovoUser('');
+    setAbasSel(TODAS_ABAS);
+    setPResFinanceiro(true);
+    setPResCompras(true);
+    setModalOpen(true);
+  }
+
+  function handleSalvarSimular() {
+    setPermissoes(abasSel, pResFinanceiro, pResCompras, nomeNovoUser || 'Novo Usuário');
+    setModalOpen(false);
+  }
 
   return (
     <>
@@ -70,7 +96,7 @@ export default function UsuariosPage() {
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-900">Colaboradores com Acesso</h2>
             <button
-              onClick={() => setModalOpen(true)}
+              onClick={handleAbrir}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg"
               style={{ backgroundColor: '#D97706' }}
             >
@@ -166,51 +192,121 @@ export default function UsuariosPage() {
       </main>
 
       {/* Modal Novo Usuário */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo Usuário" size="sm">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo Usuário" size="md">
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Nome Completo</label>
-            <input type="text" placeholder="Nome do colaborador" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            <input
+              type="text"
+              placeholder="Nome do colaborador"
+              value={nomeNovoUser}
+              onChange={(e) => setNomeNovoUser(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5">E-mail</label>
             <input type="email" placeholder="colaborador@paoquente.com.br" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Perfil de Acesso</label>
-            <select className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
-              <option>Administrador</option>
-              <option>Gestor Financeiro</option>
-              <option>Operacional</option>
-              <option>Visualizador</option>
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Perfil de Acesso</label>
+              <select className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+                <option>Administrador</option>
+                <option>Gestor Financeiro</option>
+                <option>Operacional</option>
+                <option>Visualizador</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Acesso às Unidades</label>
+              <select className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+                <option value="">Todas as unidades</option>
+                <option value="1">Somente Centro</option>
+                <option value="2">Somente Bairro</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Acesso às Unidades</label>
-            <select className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
-              <option value="">Todas as unidades</option>
-              <option value="1">Somente Unidade Centro</option>
-              <option value="2">Somente Unidade Bairro</option>
-            </select>
+
+          {/* ── Seção de permissões de abas ── */}
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200 flex items-center gap-2">
+              <Shield size={13} className="text-amber-600" />
+              <p className="text-xs font-semibold text-gray-700">Acesso às Abas do Sistema</p>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const ativo = abasSel.includes(item.href);
+                return (
+                  <div
+                    key={item.href}
+                    className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 cursor-pointer"
+                    onClick={() => toggleAba(item.href)}
+                  >
+                    <span className="flex items-center gap-2 text-xs text-gray-700">
+                      <Icon size={13} className="text-gray-400 flex-shrink-0" />
+                      {item.label}
+                    </span>
+                    <div className={`w-8 h-4 rounded-full transition-colors relative flex-shrink-0 ${ativo ? 'bg-amber-500' : 'bg-gray-200'}`}>
+                      <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 shadow transition-transform ${ativo ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Resumos */}
+            <div className="bg-gray-50 px-4 py-2.5 border-t border-gray-200">
+              <p className="text-xs font-semibold text-gray-600">Resumos no Dashboard</p>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {[
+                { key: 'fin', label: 'Resumo financeiro (faturamento, lucro, margens)', value: pResFinanceiro, set: setPResFinanceiro },
+                { key: 'cmp', label: 'Resumo de compras (totais por categoria)',        value: pResCompras,    set: setPResCompras },
+              ].map(({ key, label, value, set }) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => set(!value)}
+                >
+                  <span className="text-xs text-gray-700 pr-4">{label}</span>
+                  <div className={`w-8 h-4 rounded-full transition-colors relative flex-shrink-0 ${value ? 'bg-amber-500' : 'bg-gray-200'}`}>
+                    <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 shadow transition-transform ${value ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
+
           <div className="space-y-2 pt-1">
             <p className="text-xs font-medium text-gray-700">Permissões adicionais</p>
-            <label className="flex items-center gap-2 text-xs text-gray-700">
+            <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
               <input type="checkbox" className="w-4 h-4 accent-amber-600" defaultChecked />
               Ver histórico de faturamento
             </label>
-            <label className="flex items-center gap-2 text-xs text-gray-700">
+            <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
               <input type="checkbox" className="w-4 h-4 accent-amber-600" />
               Ver indicadores sensíveis (DRE, lucro, margens)
             </label>
           </div>
+
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Senha inicial</label>
             <input type="password" placeholder="••••••••" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
           </div>
+
           <div className="flex justify-end gap-3 pt-2">
-            <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
-            <button onClick={() => setModalOpen(false)} className="px-5 py-2 text-sm font-medium text-white rounded-lg" style={{ backgroundColor: '#D97706' }}>Criar Usuário</button>
+            <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+              Cancelar
+            </button>
+            <button
+              onClick={handleSalvarSimular}
+              className="px-5 py-2 text-sm font-medium text-white rounded-lg flex items-center gap-2"
+              style={{ backgroundColor: '#D97706' }}
+            >
+              <PlayCircle size={14} /> Criar e Simular Acesso
+            </button>
           </div>
         </div>
       </Modal>

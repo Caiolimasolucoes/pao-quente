@@ -5,7 +5,7 @@ import Header from '@/components/layout/Header';
 import Modal from '@/components/ui/Modal';
 import { compras, produtos, fornecedores, categoriasCompra, unidades, unidadesPadaria } from '@/lib/mock-data';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Plus, Search, Building2, X, Package, Truck, ChevronRight } from 'lucide-react';
+import { Plus, Search, Building2, X, Package, Truck, ChevronRight, Link2, FileText } from 'lucide-react';
 import { useUnit } from '@/contexts/UnitContext';
 import type { Compra } from '@/types';
 
@@ -22,19 +22,20 @@ type ResultItem =
 // ── Autocomplete ──────────────────────────────────────────────
 function ProdutoAutocomplete({
   onSelect,
-  fornExtras,
-  onAddFornecedor,
+  produtosExtras,
+  onAddProduto,
 }: {
   onSelect: (prod: string, forn: string) => void;
-  fornExtras: { nome: string; cat: string }[];
-  onAddFornecedor: (nome: string, cat: string) => void;
+  produtosExtras: { nome: string; unidade: string; cat: string }[];
+  onAddProduto: (nome: string, unidade: string, cat: string) => void;
 }) {
   const [query, setQuery]               = useState('');
   const [aberto, setAberto]             = useState(false);
   const [selecionado, setSelecionado]   = useState<{ prod: string; forn: string } | null>(null);
   const [novoMode, setNovoMode]         = useState(false);
-  const [novoNome, setNovoNome]         = useState('');
-  const [novoCat, setNovoCat]           = useState('Mercearia');
+  const [novoProdNome, setNovoProdNome] = useState('');
+  const [novaUnMedida, setNovaUnMedida] = useState('KG');
+  const [novaCategoria, setNovaCategoria] = useState('Mercearia');
   const inputRef                        = useRef<HTMLInputElement>(null);
   const containerRef                    = useRef<HTMLDivElement>(null);
 
@@ -64,18 +65,19 @@ function ProdutoAutocomplete({
       }
     }
 
-    // Produtos cadastrados sem histórico de compra
-    for (const p of produtos) {
+    // Produtos cadastrados (incluindo extras registrados nesta sessão)
+    const todosProdutos = [
+      ...produtos,
+      ...produtosExtras.map((p, i) => ({ id: `extra-${i}`, nome: p.nome, unidade: p.unidade, categoria: p.cat })),
+    ];
+    for (const p of todosProdutos) {
       if (p.nome.toLowerCase().includes(q) && !results.some(r => r.tipo === 'combo' && r.prodNome === p.nome)) {
         results.push({ tipo: 'combo', prodNome: p.nome, fornNome: '', cat: p.categoria, un: p.unidade });
       }
     }
 
-    // Fornecedores que não aparecem como produtos acima
-    const todosForns = [
-      ...fornecedores.map(f => ({ nome: f.nome, cat: f.categoria })),
-      ...fornExtras,
-    ];
+    // Fornecedores existentes que correspondem à busca
+    const todosForns = fornecedores.map(f => ({ nome: f.nome, cat: f.categoria }));
     for (const f of todosForns) {
       if (f.nome.toLowerCase().includes(q) && !results.some(r => r.tipo === 'combo' && r.fornNome === f.nome)) {
         results.push({ tipo: 'fornecedor', fornNome: f.nome, cat: f.cat });
@@ -83,7 +85,7 @@ function ProdutoAutocomplete({
     }
 
     return results.slice(0, 10);
-  }, [query, fornExtras]);
+  }, [query, produtosExtras]);
 
   function handleSelect(r: ResultItem) {
     const prod = r.tipo === 'combo' ? r.prodNome : query;
@@ -101,15 +103,15 @@ function ProdutoAutocomplete({
     setTimeout(() => inputRef.current?.focus(), 50);
   }
 
-  function handleAddFornecedor() {
-    if (!novoNome.trim()) return;
-    onAddFornecedor(novoNome.trim(), novoCat);
-    setSelecionado({ prod: query || novoNome.trim(), forn: novoNome.trim() });
-    onSelect(query || novoNome.trim(), novoNome.trim());
+  function handleAddProduto() {
+    if (!novoProdNome.trim()) return;
+    onAddProduto(novoProdNome.trim(), novaUnMedida, novaCategoria);
+    setSelecionado({ prod: novoProdNome.trim(), forn: '' });
+    onSelect(novoProdNome.trim(), '');
     setNovoMode(false);
     setAberto(false);
     setQuery('');
-    setNovoNome('');
+    setNovoProdNome('');
   }
 
   if (selecionado) {
@@ -178,10 +180,10 @@ function ProdutoAutocomplete({
               </ul>
               <div className="border-t border-gray-100 px-4 py-2">
                 <button
-                  onClick={(e) => { e.stopPropagation(); setNovoMode(true); setAberto(false); }}
+                  onClick={(e) => { e.stopPropagation(); setNovoMode(true); setAberto(false); setNovoProdNome(query); }}
                   className="text-xs text-amber-700 font-medium flex items-center gap-1 hover:text-amber-900"
                 >
-                  <Plus size={12} /> Adicionar novo fornecedor
+                  <Plus size={12} /> Cadastrar novo produto/insumo
                 </button>
               </div>
             </>
@@ -189,43 +191,55 @@ function ProdutoAutocomplete({
             <div className="p-4">
               <p className="text-sm text-gray-500 mb-3">Nenhum resultado para <strong>"{query}"</strong></p>
               <button
-                onClick={(e) => { e.stopPropagation(); setNovoMode(true); setAberto(false); setNovoNome(query); }}
+                onClick={(e) => { e.stopPropagation(); setNovoMode(true); setAberto(false); setNovoProdNome(query); }}
                 className="flex items-center gap-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 px-4 py-2 rounded-lg transition-colors"
               >
-                <Plus size={14} /> Adicionar novo fornecedor
+                <Plus size={14} /> Cadastrar novo produto/insumo
               </button>
             </div>
           )}
         </div>
       )}
 
-      {/* Painel inline de cadastro de fornecedor */}
+      {/* Painel inline de cadastro de produto/insumo — mesmo formulário do Cadastros/Produtos */}
       {novoMode && (
-        <div className="mt-2 p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-3">
+        <div className="mt-2 p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-blue-900">Cadastrar novo fornecedor</p>
-            <button onClick={() => setNovoMode(false)} className="text-blue-400 hover:text-blue-700">
+            <p className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+              <Package size={14} /> Cadastrar novo produto / insumo
+            </p>
+            <button onClick={() => setNovoMode(false)} className="text-amber-400 hover:text-amber-700">
               <X size={14} />
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-blue-800 mb-1">Nome do fornecedor *</label>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-3 sm:col-span-1">
+              <label className="block text-xs font-medium text-gray-700 mb-1">Nome do produto *</label>
               <input
                 type="text"
-                placeholder="Ex: Padaria Ingredientes Ltda"
-                value={novoNome}
-                onChange={e => setNovoNome(e.target.value)}
+                placeholder="Ex: Farinha de Trigo"
+                value={novoProdNome}
+                onChange={e => setNovoProdNome(e.target.value)}
                 autoFocus
-                className="w-full px-3 py-2 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-blue-800 mb-1">Categoria</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Unidade de medida</label>
               <select
-                value={novoCat}
-                onChange={e => setNovoCat(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                value={novaUnMedida}
+                onChange={e => setNovaUnMedida(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+              >
+                {unidades.map(u => <option key={u.id} value={u.sigla}>{u.sigla} — {u.descricao}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Categoria</label>
+              <select
+                value={novaCategoria}
+                onChange={e => setNovaCategoria(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
               >
                 {categoriasCompra.map(c => <option key={c.id}>{c.nome}</option>)}
               </select>
@@ -233,16 +247,17 @@ function ProdutoAutocomplete({
           </div>
           <div className="flex items-center gap-2 pt-1">
             <button
-              onClick={handleAddFornecedor}
-              disabled={!novoNome.trim()}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-lg transition-colors"
+              onClick={handleAddProduto}
+              disabled={!novoProdNome.trim()}
+              className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
+              style={{ backgroundColor: '#D97706' }}
             >
               Cadastrar e selecionar
             </button>
-            <button onClick={() => setNovoMode(false)} className="px-3 py-2 text-sm text-blue-600 hover:text-blue-900">
+            <button onClick={() => setNovoMode(false)} className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900">
               Cancelar
             </button>
-            <p className="text-xs text-blue-600 ml-auto">O campo será preenchido automaticamente</p>
+            <p className="text-xs text-gray-400 ml-auto">Campo preenchido automaticamente após cadastro</p>
           </div>
         </div>
       )}
@@ -252,12 +267,15 @@ function ProdutoAutocomplete({
 
 // ── Página principal ──────────────────────────────────────────
 export default function ComprasPage() {
-  const [modalOpen, setModalOpen]     = useState(false);
-  const [busca, setBusca]             = useState('');
-  const [fornExtras, setFornExtras]   = useState<{ nome: string; cat: string }[]>([]);
-  const [formProd, setFormProd]       = useState('');
-  const [formForn, setFormForn]       = useState('');
-  const { filtroUnidade }             = useUnit();
+  const [modalOpen, setModalOpen]         = useState(false);
+  const [busca, setBusca]                 = useState('');
+  const [produtosExtras, setProdutosExtras] = useState<{ nome: string; unidade: string; cat: string }[]>([]);
+  const [formProd, setFormProd]           = useState('');
+  const [formForn, setFormForn]           = useState('');
+  const [gerarBoleto, setGerarBoleto]     = useState(false);
+  const [vencimentoBoleto, setVencimentoBoleto] = useState('2026-07-18');
+  const [valorTotal, setValorTotal]       = useState('');
+  const { filtroUnidade }                 = useUnit();
 
   const lista: Compra[] = compras.filter((c) => {
     const matchUnidade = filtroUnidade === 'todas' || c.unidadeId === filtroUnidade;
@@ -274,6 +292,8 @@ export default function ComprasPage() {
   function handleOpenModal() {
     setFormProd('');
     setFormForn('');
+    setGerarBoleto(false);
+    setValorTotal('');
     setModalOpen(true);
   }
 
@@ -417,13 +437,13 @@ export default function ComprasPage() {
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Produto / Fornecedor</label>
             <ProdutoAutocomplete
               key={modalOpen ? 'open' : 'closed'}
-              fornExtras={fornExtras}
+              produtosExtras={produtosExtras}
               onSelect={(prod, forn) => { setFormProd(prod); setFormForn(forn); }}
-              onAddFornecedor={(nome, cat) => setFornExtras(prev => [...prev, { nome, cat }])}
+              onAddProduto={(nome, unidade, cat) => setProdutosExtras(prev => [...prev, { nome, unidade, cat }])}
             />
             {formForn && (
               <p className="mt-1.5 text-xs text-gray-400 flex items-center gap-1">
-                <Truck size={11} /> Fornecedor selecionado: <strong className="text-gray-600">{formForn}</strong>
+                <Truck size={11} /> Fornecedor: <strong className="text-gray-600">{formForn}</strong>
               </p>
             )}
           </div>
@@ -439,13 +459,101 @@ export default function ComprasPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Total (R$)</label>
-              <input type="number" placeholder="0,00" readOnly className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed" />
+              <input
+                type="number"
+                placeholder="0,00"
+                value={valorTotal}
+                onChange={(e) => setValorTotal(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
             </div>
+          </div>
+
+          {/* Divisor — Geração de Boleto */}
+          <div className="border-t border-gray-100 pt-3">
+            <button
+              type="button"
+              onClick={() => setGerarBoleto(!gerarBoleto)}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${
+                gerarBoleto
+                  ? 'border-purple-400 bg-purple-50'
+                  : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+              }`}
+            >
+              <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <FileText size={15} className={gerarBoleto ? 'text-purple-600' : 'text-gray-400'} />
+                Gerar boleto automaticamente para esta compra
+              </span>
+              <div className={`w-8 h-4 rounded-full transition-colors relative ${gerarBoleto ? 'bg-purple-500' : 'bg-gray-300'}`}>
+                <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 transition-transform shadow ${gerarBoleto ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </div>
+            </button>
+
+            {gerarBoleto && (
+              <div className="mt-3 p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-3">
+                <p className="text-xs font-semibold text-purple-900 flex items-center gap-1.5">
+                  <Link2 size={13} /> Boleto vinculado — Compra de Insumos
+                </p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Fornecedor (boleto)</label>
+                    <input
+                      type="text"
+                      value={formForn || 'Selecione o fornecedor acima'}
+                      readOnly
+                      className="w-full px-3 py-2 text-sm border border-purple-200 rounded-lg bg-white text-gray-600 cursor-default"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Categoria (automática)</label>
+                    <input
+                      type="text"
+                      value="Compra de Insumos"
+                      readOnly
+                      className="w-full px-3 py-2 text-sm border border-purple-200 rounded-lg bg-purple-100 text-purple-800 font-medium cursor-default"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Valor do boleto (R$)</label>
+                    <input
+                      type="text"
+                      value={valorTotal ? `R$ ${parseFloat(valorTotal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                      readOnly
+                      className="w-full px-3 py-2 text-sm border border-purple-200 rounded-lg bg-white text-gray-600 cursor-default"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Vencimento</label>
+                    <input
+                      type="date"
+                      value={vencimentoBoleto}
+                      onChange={(e) => setVencimentoBoleto(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 bg-white border border-purple-100 rounded-lg px-3 py-2">
+                  <Link2 size={12} className="text-purple-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-purple-700">
+                    O boleto será gerado com <strong>vinculado à compra</strong> — a linha "Compra de Insumos" na DRE virá deste boleto, sem duplicar o valor.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
             <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
-            <button onClick={() => setModalOpen(false)} className="px-5 py-2 text-sm font-medium text-white rounded-lg" style={{ backgroundColor: '#D97706' }}>Salvar Compra</button>
+            <button
+              onClick={() => setModalOpen(false)}
+              className="px-5 py-2 text-sm font-medium text-white rounded-lg flex items-center gap-2"
+              style={{ backgroundColor: gerarBoleto ? '#7C3AED' : '#D97706' }}
+            >
+              {gerarBoleto && <FileText size={14} />}
+              {gerarBoleto ? 'Salvar e Gerar Boleto' : 'Salvar Compra'}
+            </button>
           </div>
         </div>
       </Modal>

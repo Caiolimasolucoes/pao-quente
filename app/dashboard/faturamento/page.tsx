@@ -23,6 +23,27 @@ function formatDia(dataStr: string) {
   return `${parseInt(d)}/06`;
 }
 
+// Distribuição mockada de formas de pagamento no histórico (ratios fixos para o protótipo)
+const DIST_FORMAS: Record<string, number> = {
+  pix: 0.40, debito: 0.25, visa: 0.15, mastercard: 0.12, elo: 0.05, dinheiro: 0.03,
+};
+
+function calcFormaHistorico(
+  total: number,
+  formaId: string,
+  idxForma: number,
+  ativas: { id: string }[],
+): number {
+  if (total === 0) return 0;
+  if (idxForma === ativas.length - 1) {
+    const somaOutros = ativas.slice(0, -1).reduce(
+      (s, f) => s + Math.round(total * (DIST_FORMAS[f.id] ?? 0)), 0,
+    );
+    return Math.max(0, total - somaOutros);
+  }
+  return Math.round(total * (DIST_FORMAS[formaId] ?? 0));
+}
+
 function MediaDiaSemana({ dados }: { dados: FaturamentoDia[] }) {
   const por: Record<number, number[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
   dados.filter((d) => d.valor > 0).forEach((d) => {
@@ -104,7 +125,7 @@ export default function FaturamentoPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">Hoje — 18/06</p>
-            <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalHoje)}</p>
+            <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(totalHoje)}</p>
             <div className="flex items-center gap-1 mt-1">
               <TrendingUp size={12} className="text-emerald-500" />
               <span className="text-xs text-emerald-600">+8,3% vs. ontem</span>
@@ -112,12 +133,12 @@ export default function FaturamentoPage() {
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">Acumulado Junho (MTD)</p>
-            <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalMes)}</p>
+            <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(totalMes)}</p>
             <p className="text-xs text-gray-400 mt-1">18 dias lançados</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">Meta do Mês</p>
-            <p className="text-2xl font-bold text-amber-600">{formatCurrency(34000)}</p>
+            <p className="text-[1.625rem] leading-none font-display italic text-amber-600">{formatCurrency(34000)}</p>
             <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-amber-500 rounded-full"
@@ -155,7 +176,7 @@ export default function FaturamentoPage() {
             ) : (
               /* Quando uma unidade específica — valor único */
               <>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(mediaFaturamento)}</p>
+                <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(mediaFaturamento)}</p>
                 <p className="text-xs text-gray-400 mt-1">
                   {diasComMov.length} dia{diasComMov.length !== 1 ? 's' : ''} com movimento
                 </p>
@@ -321,7 +342,7 @@ export default function FaturamentoPage() {
                           <span className="text-xs bg-amber-100 text-amber-700 font-medium px-2 py-0.5 rounded-full">Pendente</span>
                         )}
                       </div>
-                      <p className="text-2xl font-bold text-gray-900">
+                      <p className="text-[1.625rem] leading-none font-display italic text-gray-900">
                         {lancado && lancado.valor > 0 ? formatCurrency(lancado.valor) : '—'}
                       </p>
                     </div>
@@ -329,7 +350,7 @@ export default function FaturamentoPage() {
                 })}
                 <div className="p-4 rounded-lg bg-amber-50 border border-amber-100">
                   <p className="text-xs text-gray-500 mb-1">Total do dia (consolidado)</p>
-                  <p className="text-2xl font-bold text-amber-800">{formatCurrency(totalHoje)}</p>
+                  <p className="text-[1.625rem] leading-none font-display italic text-amber-800">{formatCurrency(totalHoje)}</p>
                 </div>
               </div>
             </div>
@@ -348,14 +369,25 @@ export default function FaturamentoPage() {
               )}
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" style={{ minWidth: `${560 + formasAtivas.length * 110}px` }}>
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Data</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dia</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Unidade Centro</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Unidade Bairro</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Centro</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Bairro</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-amber-50">Total</th>
+                    {formasAtivas.map((f) => (
+                      <th
+                        key={f.id}
+                        className="text-right px-3 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
+                      >
+                        <span className="inline-flex items-center justify-end gap-1">
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: f.cor }} />
+                          {f.nome}
+                        </span>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -382,13 +414,25 @@ export default function FaturamentoPage() {
                         <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-900 bg-amber-50">
                           {total > 0 ? formatCurrency(total) : <span className="text-gray-300">—</span>}
                         </td>
+                        {formasAtivas.map((f, idx) => {
+                          const vf = calcFormaHistorico(total, f.id, idx, formasAtivas);
+                          return (
+                            <td key={f.id} className="px-3 py-2.5 text-right tabular-nums text-gray-600 text-xs whitespace-nowrap">
+                              {total > 0 ? (
+                                <span style={{ color: vf > 0 ? f.cor : undefined }} className={vf > 0 ? 'font-medium' : 'text-gray-300'}>
+                                  {vf > 0 ? formatCurrency(vf) : '—'}
+                                </span>
+                              ) : <span className="text-gray-300">—</span>}
+                            </td>
+                          );
+                        })}
                       </tr>
                     );
                   })}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-200 bg-amber-50">
-                    <td colSpan={2} className="px-4 py-3 text-sm font-semibold text-gray-900">Total</td>
+                    <td colSpan={2} className="px-4 py-3 text-sm font-semibold text-gray-900">Total do período</td>
                     <td className="px-4 py-3 text-right tabular-nums text-sm font-bold text-amber-800">
                       {formatCurrency(faturamentoDiario.filter((d) => d.unidadeId === '1').reduce((a, b) => a + b.valor, 0))}
                     </td>
@@ -398,6 +442,17 @@ export default function FaturamentoPage() {
                     <td className="px-4 py-3 text-right tabular-nums text-sm font-bold text-amber-800">
                       {formatCurrency(faturamentoDiario.reduce((a, b) => a + b.valor, 0))}
                     </td>
+                    {formasAtivas.map((f, idx) => {
+                      const totalForma = diasUnicos.reduce((sum, data) => {
+                        const rowTotal = valorDia(data, '1') + valorDia(data, '2');
+                        return sum + calcFormaHistorico(rowTotal, f.id, idx, formasAtivas);
+                      }, 0);
+                      return (
+                        <td key={f.id} className="px-3 py-3 text-right tabular-nums text-sm font-bold text-amber-800 whitespace-nowrap">
+                          {formatCurrency(totalForma)}
+                        </td>
+                      );
+                    })}
                   </tr>
                 </tfoot>
               </table>

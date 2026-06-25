@@ -12,9 +12,11 @@ import {
   Lightbulb,
   FolderOpen,
   Users,
+  RotateCcw,
 } from 'lucide-react';
+import { usePermissoes } from '@/contexts/PermissoesContext';
 
-const navItems = [
+export const navItems = [
   { href: '/dashboard',              label: 'Resumo',                icon: LayoutDashboard, exact: true },
   { href: '/dashboard/faturamento',  label: 'Faturamento / Demanda', icon: TrendingUp },
   { href: '/dashboard/indicadores',  label: 'Indicadores',           icon: BarChart3 },
@@ -27,6 +29,9 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { abasVisiveis, simulandoComo, resetarAdmin } = usePermissoes();
+
+  const itensFiltrados = navItems.filter((item) => abasVisiveis.includes(item.href));
 
   function isActive(item: (typeof navItems)[0]) {
     if (item.exact) return pathname === item.href;
@@ -55,9 +60,17 @@ export default function Sidebar() {
         </div>
       </div>
 
+      {/* Banner de simulação */}
+      {simulandoComo && (
+        <div className="mx-3 mt-3 px-3 py-2 bg-blue-600/30 border border-blue-400/30 rounded-lg">
+          <p className="text-blue-200 text-xs font-medium leading-tight">Simulando acesso</p>
+          <p className="text-white text-xs font-semibold truncate">{simulandoComo}</p>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => {
+        {itensFiltrados.map((item) => {
           const Icon = item.icon;
           const active = isActive(item);
           return (
@@ -78,14 +91,22 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-white/10">
+      <div className="p-4 border-t border-white/10 space-y-2">
+        {simulandoComo && (
+          <button
+            onClick={resetarAdmin}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-blue-200 hover:text-white bg-blue-600/20 hover:bg-blue-600/40 rounded-lg transition-colors"
+          >
+            <RotateCcw size={11} /> Restaurar acesso de Administrador
+          </button>
+        )}
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-amber-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-            MS
+            {simulandoComo ? simulandoComo.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase() : 'MS'}
           </div>
           <div className="min-w-0">
-            <p className="text-white text-xs font-medium truncate">Maria Silva</p>
-            <p className="text-amber-400/70 text-xs truncate">Administrador</p>
+            <p className="text-white text-xs font-medium truncate">{simulandoComo ?? 'Maria Silva'}</p>
+            <p className="text-amber-400/70 text-xs truncate">{simulandoComo ? 'Simulação' : 'Administrador'}</p>
           </div>
         </div>
       </div>

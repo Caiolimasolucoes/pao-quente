@@ -11,7 +11,10 @@ import {
 } from '@/lib/mock-data';
 import { formatCurrency, calcVariation, formatPercent, calcPercent } from '@/lib/utils';
 import { useUnit } from '@/contexts/UnitContext';
-import { DollarSign, ShoppingBag, TrendingUp, AlertTriangle, CheckCircle, Info, Building2 } from 'lucide-react';
+import { useMetas } from '@/contexts/MetasContext';
+import { useDateRange } from '@/contexts/DateRangeContext';
+import { DollarSign, ShoppingBag, TrendingUp, AlertTriangle, CheckCircle, Info, Building2, Target } from 'lucide-react';
+import { MetaGauge } from '@/components/ui/MetaGauge';
 
 const insightIconMap = {
   alerta:   { Icon: AlertTriangle, bg: 'bg-red-50',     text: 'text-red-600',     border: 'border-red-100' },
@@ -21,6 +24,8 @@ const insightIconMap = {
 
 export default function DashboardPage() {
   const { filtroUnidade } = useUnit();
+  const { getMetaFat, getMetaLucro } = useMetas();
+  const { mesInicio, mesFim, ano } = useDateRange();
 
   const dreBase    = filtroUnidade === '1' ? dreAtualU1 : filtroUnidade === '2' ? dreAtualU2 : dreAtual;
   const dreBaseAnt = filtroUnidade === '1' ? dreMensal.at(-2)! : filtroUnidade === '2' ? dreMensal.at(-2)! : dreMesAnterior;
@@ -193,6 +198,50 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+        {/* ── Acompanhamento de Metas ──────────────────────── */}
+        {(() => {
+          const unidKey = filtroUnidade === '1' ? '1' : filtroUnidade === '2' ? '2' : 'todas';
+          const nMeses  = mesFim - mesInicio + 1;
+          const isAnual = nMeses >= 12;
+
+          // Realizado no período selecionado (dreMensal = Jan(0)…Jun(5))
+          const mesesRange = dreMensal.filter((_, i) => i >= mesInicio && i <= Math.min(mesFim, dreMensal.length - 1));
+          const realizadoFat  = mesesRange.reduce((a, m) => a + m.faturamentoTotal, 0);
+          const realizadoLucro = mesesRange.reduce((a, m) => a + m.lucro, 0);
+
+          // Meta proporcional ao período
+          const metaFatBase   = isAnual ? getMetaFat('anual', ano, unidKey) : getMetaFat('mensal', ano, unidKey) * nMeses;
+          const metaLucroBase = isAnual ? getMetaLucro('anual', ano, unidKey) : getMetaLucro('mensal', ano, unidKey) * nMeses;
+
+          const MESES_CURTO_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+          const periodoLabel = mesInicio === mesFim
+            ? `${MESES_CURTO_PT[mesInicio]} ${ano}`
+            : `${MESES_CURTO_PT[mesInicio]}–${MESES_CURTO_PT[mesFim]} ${ano}`;
+
+          if (!metaFatBase && !metaLucroBase) return null;
+          return (
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <Target size={15} className="text-amber-600" />
+                  <h2 className="text-sm font-semibold text-gray-900">Acompanhamento de Metas</h2>
+                </div>
+                <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
+                  {periodoLabel} · {nMeses === 1 ? 'meta mensal' : isAnual ? 'meta anual' : `meta mensal × ${nMeses}`}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-6 justify-around">
+                {metaFatBase > 0 && (
+                  <MetaGauge titulo={`Faturamento · ${periodoLabel}`} valor={realizadoFat} meta={metaFatBase} tipo="faturamento" />
+                )}
+                {metaLucroBase > 0 && (
+                  <MetaGauge titulo={`Lucro · ${periodoLabel}`} valor={realizadoLucro} meta={metaLucroBase} tipo="lucro" />
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
       </main>
     </>
   );
