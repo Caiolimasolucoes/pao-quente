@@ -166,6 +166,9 @@ export default function BoletosPage() {
   const [salvandoEdit, setSalvandoEdit]   = useState(false);
   const [erroEdit, setErroEdit]           = useState('');
   const [fornExtras, setFornExtras]       = useState<{ nome: string; categoria: string }[]>([]);
+  const [pagandoBoleto, setPagandoBoleto]   = useState<any>(null);
+  const [formValorPago, setFormValorPago]   = useState('');
+  const [salvandoPagamento, setSalvandoPagamento] = useState(false);
   // Campos do formulário
   const [formUnidade, setFormUnidade]   = useState('1');
   const [formForn, setFormForn]         = useState('');
@@ -198,6 +201,9 @@ export default function BoletosPage() {
   const vencidos      = listaBoletos.filter(b => b.status === 'vencido');
   const aVencer       = listaBoletos.filter(b => b.status === 'pendente');
   const totalPendente = listaBoletos.filter(b => b.status !== 'pago').reduce((a, b) => a + Number(b.valor), 0);
+  const totalJuros    = listaBoletos
+    .filter(b => b.status === 'pago' && b.valor_pago != null)
+    .reduce((a, b) => a + (Number(b.valor_pago) - Number(b.valor)), 0);
 
   function handleSubCat(sub: string) {
     setFormSubCat(sub);
@@ -234,10 +240,24 @@ export default function BoletosPage() {
     setModalOpen(false);
   }
 
-  async function handleMarcarPago(boleto: any) {
+  function handleMarcarPago(boleto: any) {
+    setPagandoBoleto(boleto);
+    setFormValorPago(String(boleto.valor || ''));
+  }
+
+  async function handleConfirmarPagamento() {
+    if (!pagandoBoleto) return;
+    setSalvandoPagamento(true);
     const supabase = createClient();
-    await supabase.from('boletos').update({ status: 'pago', data_pagamento: new Date().toISOString().split('T')[0] }).eq('id', boleto.id);
+    await supabase.from('boletos').update({
+      status: 'pago',
+      data_pagamento: new Date().toISOString().split('T')[0],
+      valor_pago: parseFloat(formValorPago) || Number(pagandoBoleto.valor),
+    }).eq('id', pagandoBoleto.id);
     await carregarDados();
+    setSalvandoPagamento(false);
+    setPagandoBoleto(null);
+    setFormValorPago('');
   }
 
   function handleOpenEditar(boleto: any) {
@@ -250,6 +270,7 @@ export default function BoletosPage() {
     setFormVenc(boleto.vencimento || '');
     setFormStatus(boleto.status || 'pendente');
     setFormVinculado(!!boleto.vinculado_compra);
+    setFormValorPago(boleto.valor_pago ? String(boleto.valor_pago) : '');
     setErroEdit('');
     setEditModalOpen(true);
   }
@@ -269,6 +290,7 @@ export default function BoletosPage() {
       vencimento: formVenc,
       status: formStatus,
       vinculado_compra: formVinculado,
+      valor_pago: formValorPago ? parseFloat(formValorPago) : null,
     }).eq('id', editingBoleto.id);
     if (error) { setErroEdit('Erro ao salvar: ' + error.message); setSalvandoEdit(false); return; }
     await carregarDados();
@@ -329,21 +351,28 @@ export default function BoletosPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">Total em Aberto</p>
-            <p className="text-[1.625rem] leading-none font-display italic text-red-600">{formatCurrency(totalPendente)}</p>
+            <p className="text-[1.4rem] leading-none font-display italic text-red-600">{formatCurrency(totalPendente)}</p>
             <p className="text-xs text-gray-400 mt-1">Pendente + Vencido</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">A Vencer</p>
-            <p className="text-[1.625rem] leading-none font-display italic text-amber-600">{aVencer.length} boletos</p>
+            <p className="text-[1.4rem] leading-none font-display italic text-amber-600">{aVencer.length} boletos</p>
             <p className="text-xs text-gray-400 mt-1">{formatCurrency(aVencer.reduce((a, b) => a + Number(b.valor), 0))}</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">Vencidos</p>
-            <p className="text-[1.625rem] leading-none font-display italic text-red-600">{vencidos.length} boletos</p>
+            <p className="text-[1.4rem] leading-none font-display italic text-red-600">{vencidos.length} boletos</p>
             <p className="text-xs text-gray-400 mt-1">{formatCurrency(vencidos.reduce((a, b) => a + Number(b.valor), 0))}</p>
+          </div>
+          <div className={`bg-white rounded-xl border p-4 ${totalJuros > 0 ? 'border-red-200 bg-red-50/30' : totalJuros < 0 ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}>
+            <p className="text-xs text-gray-500 mb-1">Juros/Multas Pagos</p>
+            <p className={`text-[1.4rem] leading-none font-display italic ${totalJuros > 0 ? 'text-red-600' : totalJuros < 0 ? 'text-green-600' : 'text-gray-400'}`}>
+              {totalJuros !== 0 ? (totalJuros > 0 ? '+' : '') + formatCurrency(totalJuros) : '—'}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">{totalJuros < 0 ? 'Descontos obtidos' : totalJuros > 0 ? 'Acima do valor original' : 'Nenhum registrado'}</p>
           </div>
         </div>
 
@@ -378,7 +407,7 @@ export default function BoletosPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    {['Fornecedor','Categoria','Sub Categoria','Unidade','Valor','Vencimento','Vínculo','Status','Ação'].map(h => (
+                    {['Fornecedor','Categoria','Sub Categoria','Unidade','Valor','Valor Pago','Juros/Multa','Vencimento','Vínculo','Status','Ação'].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -402,6 +431,22 @@ export default function BoletosPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 font-semibold text-gray-900 tabular-nums">{formatCurrency(Number(b.valor))}</td>
+                      <td className="px-4 py-3 tabular-nums text-sm">
+                        {b.valor_pago != null
+                          ? <span className="font-semibold text-gray-900">{formatCurrency(Number(b.valor_pago))}</span>
+                          : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-sm">
+                        {b.valor_pago != null ? (() => {
+                          const juros = Number(b.valor_pago) - Number(b.valor);
+                          if (Math.abs(juros) < 0.01) return <span className="text-gray-400">—</span>;
+                          return (
+                            <span className={`font-semibold ${juros > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                              {juros > 0 ? '+' : ''}{formatCurrency(juros)}
+                            </span>
+                          );
+                        })() : <span className="text-gray-300">—</span>}
+                      </td>
                       <td className={`px-4 py-3 text-sm whitespace-nowrap ${b.status === 'vencido' ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
                         {formatDate(b.vencimento)}
                       </td>
@@ -432,7 +477,7 @@ export default function BoletosPage() {
                     </tr>
                   ))}
                   {lista.length === 0 && (
-                    <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400 text-sm">Nenhum boleto encontrado.</td></tr>
+                    <tr><td colSpan={11} className="px-4 py-10 text-center text-gray-400 text-sm">Nenhum boleto encontrado.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -513,6 +558,24 @@ export default function BoletosPage() {
               <option value="vencido">Vencido</option>
             </select>
           </div>
+
+          {formStatus === 'pago' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Valor pago (R$)</label>
+              <input type="number" placeholder={formValor || '0,00'} min={0} step="0.01" value={formValorPago}
+                onChange={e => setFormValorPago(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              {formValorPago && formValor && (() => {
+                const juros = parseFloat(formValorPago) - parseFloat(formValor);
+                if (Math.abs(juros) < 0.01) return null;
+                return (
+                  <p className={`text-xs mt-1 font-medium ${juros > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {juros > 0 ? `Juros/Multa: +${formatCurrency(juros)}` : `Desconto: ${formatCurrency(juros)}`}
+                  </p>
+                );
+              })()}
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <input type="checkbox" id="vinculado-edit" className="w-4 h-4 accent-amber-600"
@@ -621,6 +684,54 @@ export default function BoletosPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal de confirmação de pagamento */}
+      <Modal open={pagandoBoleto !== null} onClose={() => { setPagandoBoleto(null); setFormValorPago(''); }} title="Registrar Pagamento" size="sm">
+        {pagandoBoleto && (
+          <div className="space-y-4">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1">
+              <p className="text-xs text-gray-500">Boleto</p>
+              <p className="text-sm font-semibold text-gray-900">{pagandoBoleto.fornecedor}</p>
+              {pagandoBoleto.sub_categoria && <p className="text-xs text-gray-400">{pagandoBoleto.sub_categoria}</p>}
+              <p className="text-sm text-gray-700 mt-1">Valor original: <strong>{formatCurrency(Number(pagandoBoleto.valor))}</strong></p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Valor efetivamente pago (R$)</label>
+              <input
+                autoFocus
+                type="number"
+                min={0}
+                step="0.01"
+                value={formValorPago}
+                onChange={e => setFormValorPago(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 tabular-nums"
+              />
+              <p className="text-xs text-gray-400 mt-1">Se igual ao valor original, deixe como está.</p>
+            </div>
+
+            {formValorPago && (() => {
+              const juros = parseFloat(formValorPago) - Number(pagandoBoleto.valor);
+              if (Math.abs(juros) < 0.01) return null;
+              return (
+                <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${juros > 0 ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-green-50 border border-green-200 text-green-700'}`}>
+                  {juros > 0
+                    ? `Juros/Multa: +${formatCurrency(juros)}`
+                    : `Desconto obtido: ${formatCurrency(juros)}`}
+                </div>
+              );
+            })()}
+
+            <div className="flex justify-end gap-3 pt-1">
+              <button onClick={() => { setPagandoBoleto(null); setFormValorPago(''); }} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
+              <button onClick={handleConfirmarPagamento} disabled={salvandoPagamento || !formValorPago}
+                className="px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-60 bg-green-600 hover:bg-green-700 transition-colors">
+                {salvandoPagamento ? 'Salvando…' : 'Confirmar Pagamento'}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </>
   );
