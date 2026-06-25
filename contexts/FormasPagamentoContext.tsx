@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 
 export interface FormaPagamento {
   id: string;
@@ -32,20 +32,36 @@ const FormasPagamentoContext = createContext<FormasPagamentoContextValue>({
   removerForma: () => {},
 });
 
+function tryParse<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch { return fallback; }
+}
+
 export function FormasPagamentoProvider({ children }: { children: React.ReactNode }) {
   const [formas, setFormas] = useState<FormaPagamento[]>(DEFAULT_FORMAS);
 
+  useEffect(() => {
+    setFormas(tryParse('pq_formas_pagamento', DEFAULT_FORMAS));
+  }, []);
+
+  function persist(novas: FormaPagamento[]) {
+    setFormas(novas);
+    localStorage.setItem('pq_formas_pagamento', JSON.stringify(novas));
+  }
+
   function toggleForma(id: string) {
-    setFormas((prev) => prev.map((f) => f.id === id ? { ...f, ativo: !f.ativo } : f));
+    persist(formas.map((f) => f.id === id ? { ...f, ativo: !f.ativo } : f));
   }
 
   function adicionarForma(nome: string, cor: string) {
     const id = nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '-');
-    setFormas((prev) => [...prev, { id, nome, cor, ativo: true }]);
+    persist([...formas, { id, nome, cor, ativo: true }]);
   }
 
   function removerForma(id: string) {
-    setFormas((prev) => prev.filter((f) => f.id !== id));
+    persist(formas.filter((f) => f.id !== id));
   }
 
   return (

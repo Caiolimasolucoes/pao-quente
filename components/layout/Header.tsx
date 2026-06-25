@@ -1,21 +1,21 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Bell, Building2, CalendarDays, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Bell, Building2, CalendarDays, X, Menu } from 'lucide-react';
 import { useUnit } from '@/contexts/UnitContext';
 import { useDateRange } from '@/contexts/DateRangeContext';
+import { useSidebar } from '@/contexts/SidebarContext';
 
 const MESES_CURTO = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MESES_LONGO = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-// Meses com dados disponíveis no mock (Jan–Jun 2026)
 const MOCK_ANO = 2026;
-const MOCK_MES_MAX = 5; // Junho = index 5
+const MOCK_MES_MAX = 5;
 
 const unidadeOpcoes = [
-  { value: 'todas', label: 'Todas as unidades' },
-  { value: '1',     label: 'Unidade Centro' },
-  { value: '2',     label: 'Unidade Bairro' },
+  { value: 'todas', label: 'Todas', labelLong: 'Todas as unidades' },
+  { value: '1',     label: 'Centro', labelLong: 'Unidade Centro' },
+  { value: '2',     label: 'Bairro', labelLong: 'Unidade Bairro' },
 ] as const;
 
 interface HeaderProps { title: string; }
@@ -23,6 +23,7 @@ interface HeaderProps { title: string; }
 export default function Header({ title }: HeaderProps) {
   const { filtroUnidade, setFiltroUnidade } = useUnit();
   const { mesInicio, mesFim, ano, setRange } = useDateRange();
+  const { toggle } = useSidebar();
 
   const [open, setOpen]         = useState(false);
   const [anoLocal, setAnoLocal] = useState(ano);
@@ -31,7 +32,6 @@ export default function Header({ title }: HeaderProps) {
   const [hover, setHover]       = useState<number | null>(null);
   const popRef = useRef<HTMLDivElement>(null);
 
-  // fecha ao clicar fora
   useEffect(() => {
     if (!open) return;
     function handle(e: MouseEvent) {
@@ -62,7 +62,6 @@ export default function Header({ title }: HeaderProps) {
       setTempIni(idx);
       setFase('fim');
     } else {
-      // confirma range
       setRange(tempIni!, idx, anoLocal);
       setOpen(false);
       resetPicker();
@@ -73,7 +72,6 @@ export default function Header({ title }: HeaderProps) {
     return anoLocal === MOCK_ANO && idx > MOCK_MES_MAX;
   }
 
-  // intervalos para colorir hover e seleção
   const effectiveIni = fase === 'fim' && tempIni !== null ? tempIni : mesInicio;
   const effectiveFim = fase === 'fim' && hover !== null && tempIni !== null
     ? (hover >= tempIni ? hover : tempIni)
@@ -87,9 +85,7 @@ export default function Header({ title }: HeaderProps) {
   }
   function isStart(idx: number) {
     if (anoLocal !== ano) return false;
-    return fase === 'fim' && tempIni !== null
-      ? idx === tempIni
-      : idx === mesInicio;
+    return fase === 'fim' && tempIni !== null ? idx === tempIni : idx === mesInicio;
   }
   function isEnd(idx: number) {
     if (anoLocal !== ano) return false;
@@ -98,29 +94,41 @@ export default function Header({ title }: HeaderProps) {
       : idx === mesFim;
   }
 
-  // label no header
   function label() {
-    if (mesInicio === mesFim) return `${MESES_LONGO[mesInicio]} / ${ano}`;
-    return `${MESES_CURTO[mesInicio]} – ${MESES_CURTO[mesFim]} / ${ano}`;
+    if (mesInicio === mesFim) return `${MESES_CURTO[mesInicio]}/${ano}`;
+    return `${MESES_CURTO[mesInicio]}–${MESES_CURTO[mesFim]}/${ano}`;
   }
 
   const nMeses = mesFim - mesInicio + 1;
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0 gap-4">
-      <h1 className="text-lg font-semibold text-gray-900 flex-shrink-0">{title}</h1>
+    <header className="h-14 sm:h-16 bg-white border-b border-gray-200 flex items-center px-3 sm:px-6 flex-shrink-0 gap-2 sm:gap-4">
+      {/* Hamburger — mobile only */}
+      <button
+        onClick={toggle}
+        className="lg:hidden p-2 -ml-1 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+        aria-label="Abrir menu"
+      >
+        <Menu size={20} />
+      </button>
 
-      <div className="flex items-center gap-3 ml-auto">
+      <h1 className="text-base sm:text-lg font-semibold text-gray-900 flex-1 truncate">{title}</h1>
+
+      <div className="flex items-center gap-1.5 sm:gap-3 ml-auto">
         {/* Seletor de unidade */}
-        <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-1.5">
+        <div className="flex items-center gap-1.5 bg-gray-100 rounded-lg px-2 sm:px-3 py-1.5">
           <Building2 size={14} className="text-gray-500 flex-shrink-0" />
           <select
             value={filtroUnidade}
             onChange={(e) => setFiltroUnidade(e.target.value as typeof filtroUnidade)}
-            className="text-sm font-medium text-gray-700 bg-transparent border-none outline-none cursor-pointer pr-1"
+            className="text-xs sm:text-sm font-medium text-gray-700 bg-transparent border-none outline-none cursor-pointer"
           >
             {unidadeOpcoes.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value}>
+                <span className="sm:hidden">{o.label}</span>
+                <span className="hidden sm:inline">{o.labelLong}</span>
+                {o.label}
+              </option>
             ))}
           </select>
         </div>
@@ -129,10 +137,10 @@ export default function Header({ title }: HeaderProps) {
         <div className="relative" ref={popRef}>
           <button
             onClick={handleOpen}
-            className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 transition-colors rounded-lg px-3 py-1.5"
+            className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 transition-colors rounded-lg px-2 sm:px-3 py-1.5"
           >
             <CalendarDays size={14} className="text-amber-600 flex-shrink-0" />
-            <span className="text-sm font-medium text-gray-700 whitespace-nowrap">{label()}</span>
+            <span className="hidden sm:inline text-sm font-medium text-gray-700 whitespace-nowrap">{label()}</span>
             {nMeses > 1 && (
               <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-1.5 py-0.5 rounded-full">
                 {nMeses}m
@@ -142,29 +150,18 @@ export default function Header({ title }: HeaderProps) {
 
           {open && (
             <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-4 w-72">
-              {/* Header do picker */}
               <div className="flex items-center justify-between mb-3">
-                <button
-                  onClick={() => setAnoLocal((a) => a - 1)}
-                  className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-900"
-                >
+                <button onClick={() => setAnoLocal((a) => a - 1)} className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-900">
                   <ChevronLeft size={16} />
                 </button>
                 <span className="text-sm font-bold text-gray-900">{anoLocal}</span>
-                <button
-                  onClick={() => setAnoLocal((a) => a + 1)}
-                  className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-900"
-                >
+                <button onClick={() => setAnoLocal((a) => a + 1)} className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-900">
                   <ChevronRight size={16} />
                 </button>
               </div>
-
-              {/* Instrução */}
               <p className="text-[10px] text-center text-gray-400 mb-3">
                 {fase === 'inicio' ? 'Clique no mês inicial' : 'Clique no mês final'}
               </p>
-
-              {/* Grid de meses */}
               <div className="grid grid-cols-4 gap-1">
                 {MESES_CURTO.map((m, idx) => {
                   const disabled = isDisabled(idx);
@@ -193,13 +190,11 @@ export default function Header({ title }: HeaderProps) {
                   );
                 })}
               </div>
-
-              {/* Ação rápida */}
               <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100 flex-wrap">
                 {[
-                  { l: 'Este mês',  f: () => setRange(5, 5, 2026) },
-                  { l: 'Trim.',     f: () => setRange(3, 5, 2026) },
-                  { l: 'Semestre',  f: () => setRange(0, 5, 2026) },
+                  { l: 'Este mês', f: () => setRange(5, 5, 2026) },
+                  { l: 'Trim.',    f: () => setRange(3, 5, 2026) },
+                  { l: 'Semestre', f: () => setRange(0, 5, 2026) },
                 ].map(({ l, f }) => (
                   <button key={l} onClick={() => { f(); setOpen(false); resetPicker(); }}
                     className="text-[10px] text-amber-700 font-semibold border border-amber-200 bg-amber-50 hover:bg-amber-100 rounded-md px-2 py-1 transition-colors">
@@ -216,11 +211,9 @@ export default function Header({ title }: HeaderProps) {
         </div>
 
         {/* Notificações */}
-        <button className="relative text-gray-400 hover:text-gray-600 transition-colors">
-          <Bell size={20} />
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold">
-            2
-          </span>
+        <button className="relative text-gray-400 hover:text-gray-600 transition-colors p-1">
+          <Bell size={18} />
+          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 rounded-full text-white text-[9px] flex items-center justify-center font-bold">2</span>
         </button>
       </div>
     </header>

@@ -5,7 +5,7 @@ import Header from '@/components/layout/Header';
 import Modal from '@/components/ui/Modal';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Plus, AlertCircle, Link2, Building2, Search, X, Truck, CheckCircle2 } from 'lucide-react';
+import { Plus, AlertCircle, Link2, Building2, Search, X, Truck, CheckCircle2, Pencil } from 'lucide-react';
 import { useUnit } from '@/contexts/UnitContext';
 import { createClient } from '@/lib/supabase/client';
 
@@ -161,6 +161,10 @@ export default function BoletosPage() {
   const [filtroStatus, setFiltroStatus]   = useState<'todos' | 'pendente' | 'vencido' | 'pago'>('todos');
   const { filtroUnidade }                 = useUnit();
   const [modalOpen, setModalOpen]         = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingBoleto, setEditingBoleto] = useState<any>(null);
+  const [salvandoEdit, setSalvandoEdit]   = useState(false);
+  const [erroEdit, setErroEdit]           = useState('');
   const [fornExtras, setFornExtras]       = useState<{ nome: string; categoria: string }[]>([]);
   // Campos do formulário
   const [formUnidade, setFormUnidade]   = useState('1');
@@ -234,6 +238,51 @@ export default function BoletosPage() {
     const supabase = createClient();
     await supabase.from('boletos').update({ status: 'pago', data_pagamento: new Date().toISOString().split('T')[0] }).eq('id', boleto.id);
     await carregarDados();
+  }
+
+  function handleOpenEditar(boleto: any) {
+    setEditingBoleto(boleto);
+    setFormUnidade(boleto.unidade_id || '1');
+    setFormForn(boleto.fornecedor || '');
+    setFormCat(boleto.categoria || '');
+    setFormSubCat(boleto.sub_categoria || '');
+    setFormValor(String(boleto.valor || ''));
+    setFormVenc(boleto.vencimento || '');
+    setFormStatus(boleto.status || 'pendente');
+    setFormVinculado(!!boleto.vinculado_compra);
+    setErroEdit('');
+    setEditModalOpen(true);
+  }
+
+  async function handleSalvarEdicao() {
+    if (!formForn) { setErroEdit('Selecione um fornecedor.'); return; }
+    if (!formValor || parseFloat(formValor) <= 0) { setErroEdit('Informe o valor.'); return; }
+    if (!formVenc) { setErroEdit('Informe o vencimento.'); return; }
+    setSalvandoEdit(true); setErroEdit('');
+    const supabase = createClient();
+    const { error } = await supabase.from('boletos').update({
+      unidade_id: formUnidade,
+      fornecedor: formForn,
+      categoria: formCat || 'Outros',
+      sub_categoria: formSubCat || '',
+      valor: parseFloat(formValor),
+      vencimento: formVenc,
+      status: formStatus,
+      vinculado_compra: formVinculado,
+    }).eq('id', editingBoleto.id);
+    if (error) { setErroEdit('Erro ao salvar: ' + error.message); setSalvandoEdit(false); return; }
+    await carregarDados();
+    setSalvandoEdit(false);
+    setEditModalOpen(false);
+    setEditingBoleto(null);
+  }
+
+  async function handleAddFornecedorDB(nome: string, cat: string) {
+    setFornExtras(prev => [...prev, { nome, categoria: cat }]);
+    const supabase = createClient();
+    await supabase.from('fornecedores').insert({ id: `forn-${Date.now()}`, nome, categoria: cat, ativo: true });
+    const { data } = await supabase.from('fornecedores').select('*').order('nome');
+    if (data) setFornecedoresDB(data);
   }
 
   return (
@@ -365,13 +414,20 @@ export default function BoletosPage() {
                       </td>
                       <td className="px-4 py-3"><StatusBadge status={b.status} /></td>
                       <td className="px-4 py-3">
-                        {b.status !== 'pago' && (
-                          <button onClick={() => handleMarcarPago(b)}
-                            title="Marcar como pago"
-                            className="flex items-center gap-1 text-xs text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 px-2.5 py-1 rounded-lg transition-colors">
-                            <CheckCircle2 size={12} /> Pago
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => handleOpenEditar(b)}
+                            title="Editar boleto"
+                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+                            <Pencil size={13} />
                           </button>
-                        )}
+                          {b.status !== 'pago' && (
+                            <button onClick={() => handleMarcarPago(b)}
+                              title="Marcar como pago"
+                              className="flex items-center gap-1 text-xs text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 px-2.5 py-1 rounded-lg transition-colors">
+                              <CheckCircle2 size={12} /> Pago
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -389,6 +445,95 @@ export default function BoletosPage() {
           <span>Boletos marcados com <strong className="text-purple-600">Compra</strong> estão vinculados a uma compra de insumo — não entram como despesa duplicada na DRE.</span>
         </div>
       </main>
+
+      {/* Modal de edição */}
+      <Modal open={editModalOpen} onClose={() => { setEditModalOpen(false); setEditingBoleto(null); }} title="Editar Boleto" size="md">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Unidade</label>
+            <div className="grid grid-cols-2 gap-3">
+              {[{ id: '1', nome: 'Unidade Centro' }, { id: '2', nome: 'Unidade Bairro' }].map(u => (
+                <button key={u.id} onClick={() => setFormUnidade(u.id)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${formUnidade === u.id ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-700 hover:border-amber-300'}`}>
+                  <Building2 size={14} /> {u.nome}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Fornecedor</label>
+            <FornecedorAutocomplete key={editModalOpen ? `edit-${editingBoleto?.id}` : 'edit-closed'}
+              value={formForn} onChange={setFormForn}
+              fornecedoresDB={fornecedoresDB} fornExtras={fornExtras}
+              onAddFornecedor={handleAddFornecedorDB}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Subcategoria</label>
+            <select value={formSubCat} onChange={e => handleSubCat(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+              <option value="">Selecione a subcategoria…</option>
+              {CATEGORIAS_BOLETO.map(cat => (
+                <optgroup key={cat.nome} label={cat.nome}>
+                  {cat.subs.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+
+          {formCat && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+              <span className="text-xs text-blue-600">Categoria principal:</span>
+              <span className="text-xs font-bold text-blue-800">{formCat}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Valor (R$)</label>
+              <input type="number" placeholder="0,00" min={0} step="0.01" value={formValor}
+                onChange={e => setFormValor(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Vencimento</label>
+              <input type="date" value={formVenc} onChange={e => setFormVenc(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Status</label>
+            <select value={formStatus} onChange={e => setFormStatus(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+              <option value="pendente">Pendente</option>
+              <option value="pago">Pago</option>
+              <option value="vencido">Vencido</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="vinculado-edit" className="w-4 h-4 accent-amber-600"
+              checked={formVinculado} onChange={e => setFormVinculado(e.target.checked)} />
+            <label htmlFor="vinculado-edit" className="text-xs text-gray-700 flex items-center gap-1">
+              <Link2 size={12} className="text-purple-600" />
+              Vincular a uma compra de insumo
+            </label>
+          </div>
+
+          {erroEdit && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{erroEdit}</p>}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={() => { setEditModalOpen(false); setEditingBoleto(null); }} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
+            <button onClick={handleSalvarEdicao} disabled={salvandoEdit}
+              className="px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-60" style={{ backgroundColor: '#D97706' }}>
+              {salvandoEdit ? 'Salvando…' : 'Salvar Alterações'}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo Boleto" size="md">
         <div className="space-y-4">
@@ -409,7 +554,7 @@ export default function BoletosPage() {
             <FornecedorAutocomplete key={modalOpen ? 'open' : 'closed'}
               value={formForn} onChange={setFormForn}
               fornecedoresDB={fornecedoresDB} fornExtras={fornExtras}
-              onAddFornecedor={(nome, cat) => setFornExtras(prev => [...prev, { nome, categoria: cat }])}
+              onAddFornecedor={handleAddFornecedorDB}
             />
           </div>
 

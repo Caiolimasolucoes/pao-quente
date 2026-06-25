@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 
 export interface MetaFaturamento {
   id: string;
@@ -63,10 +63,38 @@ interface MetasCtx {
 
 const Ctx = createContext<MetasCtx>({} as MetasCtx);
 
+function tryParse<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch { return fallback; }
+}
+
 export function MetasProvider({ children }: { children: React.ReactNode }) {
   const [metasFaturamento, setMetasFaturamento] = useState<MetaFaturamento[]>(DEFAULT_FAT);
   const [metasDespesa, setMetasDespesa]         = useState<MetaDespesaCategoria[]>(DEFAULT_DESP);
   const [metasLucro, setMetasLucro]             = useState<MetaLucro[]>(DEFAULT_LUCRO);
+
+  useEffect(() => {
+    setMetasFaturamento(tryParse('pq_metas_fat', DEFAULT_FAT));
+    setMetasDespesa(tryParse('pq_metas_desp', DEFAULT_DESP));
+    setMetasLucro(tryParse('pq_metas_lucro', DEFAULT_LUCRO));
+  }, []);
+
+  function salvarMetasFaturamento(metas: MetaFaturamento[]) {
+    setMetasFaturamento(metas);
+    localStorage.setItem('pq_metas_fat', JSON.stringify(metas));
+  }
+
+  function salvarMetasDespesa(metas: MetaDespesaCategoria[]) {
+    setMetasDespesa(metas);
+    localStorage.setItem('pq_metas_desp', JSON.stringify(metas));
+  }
+
+  function salvarMetasLucro(metas: MetaLucro[]) {
+    setMetasLucro(metas);
+    localStorage.setItem('pq_metas_lucro', JSON.stringify(metas));
+  }
 
   function getMetaFat(tipo: MetaFaturamento['tipo'], ano: number, unidadeId: string) {
     return metasFaturamento.find(
@@ -90,9 +118,7 @@ export function MetasProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={{
       metasFaturamento, metasDespesa, metasLucro,
-      salvarMetasFaturamento: setMetasFaturamento,
-      salvarMetasDespesa: setMetasDespesa,
-      salvarMetasLucro: setMetasLucro,
+      salvarMetasFaturamento, salvarMetasDespesa, salvarMetasLucro,
       getMetaFat, getMetaLucro, getMetaDesp,
     }}>
       {children}

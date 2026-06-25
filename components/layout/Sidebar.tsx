@@ -4,41 +4,39 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard,
-  TrendingUp,
-  BarChart3,
-  ShoppingCart,
-  FileText,
-  Lightbulb,
-  FolderOpen,
-  Users,
-  RotateCcw,
-  LogOut,
+  LayoutDashboard, TrendingUp, BarChart3, ShoppingCart, FileText,
+  Lightbulb, FolderOpen, Users, RotateCcw, LogOut, X,
 } from 'lucide-react';
 import { usePermissoes } from '@/contexts/PermissoesContext';
+import { useSidebar } from '@/contexts/SidebarContext';
 import { createClient } from '@/lib/supabase/client';
 
 export const navItems = [
-  { href: '/dashboard',              label: 'Resumo',                icon: LayoutDashboard, exact: true },
-  { href: '/dashboard/faturamento',  label: 'Faturamento / Demanda', icon: TrendingUp },
-  { href: '/dashboard/indicadores',  label: 'Indicadores',           icon: BarChart3 },
-  { href: '/dashboard/compras',      label: 'Gestão de Compras',     icon: ShoppingCart },
-  { href: '/dashboard/boletos',      label: 'Gestão de Boletos',     icon: FileText },
-  { href: '/dashboard/insights',     label: 'Insights Financeiros',  icon: Lightbulb },
-  { href: '/dashboard/cadastros',    label: 'Cadastros',             icon: FolderOpen },
-  { href: '/dashboard/usuarios',     label: 'Usuários e Permissões', icon: Users },
+  { href: '/dashboard',             label: 'Resumo',                icon: LayoutDashboard, exact: true },
+  { href: '/dashboard/faturamento', label: 'Faturamento / Demanda', icon: TrendingUp },
+  { href: '/dashboard/indicadores', label: 'Indicadores',           icon: BarChart3 },
+  { href: '/dashboard/compras',     label: 'Gestão de Compras',     icon: ShoppingCart },
+  { href: '/dashboard/boletos',     label: 'Gestão de Boletos',     icon: FileText },
+  { href: '/dashboard/insights',    label: 'Insights Financeiros',  icon: Lightbulb },
+  { href: '/dashboard/cadastros',   label: 'Cadastros',             icon: FolderOpen },
+  { href: '/dashboard/usuarios',    label: 'Usuários e Permissões', icon: Users },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { abasVisiveis, simulandoComo, resetarAdmin } = usePermissoes();
+  const { open, close } = useSidebar();
 
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
+  }
+
+  function handleNav() {
+    close();
   }
 
   const itensFiltrados = navItems.filter((item) => abasVisiveis.includes(item.href));
@@ -48,11 +46,14 @@ export default function Sidebar() {
     return pathname.startsWith(item.href);
   }
 
-  return (
-    <aside className="w-64 flex-shrink-0 flex flex-col" style={{ backgroundColor: '#2D1200' }}>
-      {/* Logo */}
-      <div className="h-16 flex items-center px-4 border-b border-white/10">
-        <div className="flex items-center gap-3">
+  const sidebarContent = (
+    <aside
+      className="w-64 h-full flex flex-col flex-shrink-0"
+      style={{ backgroundColor: '#2D1200' }}
+    >
+      {/* Logo + close button (mobile) */}
+      <div className="h-16 flex items-center px-4 border-b border-white/10 flex-shrink-0">
+        <div className="flex items-center gap-3 flex-1">
           <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 bg-amber-600 flex items-center justify-center">
             <Image
               src="/logo.jpg"
@@ -68,11 +69,18 @@ export default function Sidebar() {
             <p className="text-amber-400 text-xs">Gestão Financeira</p>
           </div>
         </div>
+        <button
+          onClick={close}
+          className="lg:hidden text-white/60 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+          aria-label="Fechar menu"
+        >
+          <X size={20} />
+        </button>
       </div>
 
       {/* Banner de simulação */}
       {simulandoComo && (
-        <div className="mx-3 mt-3 px-3 py-2 bg-blue-600/30 border border-blue-400/30 rounded-lg">
+        <div className="mx-3 mt-3 px-3 py-2 bg-blue-600/30 border border-blue-400/30 rounded-lg flex-shrink-0">
           <p className="text-blue-200 text-xs font-medium leading-tight">Simulando acesso</p>
           <p className="text-white text-xs font-semibold truncate">{simulandoComo}</p>
         </div>
@@ -87,6 +95,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={handleNav}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 active
                   ? 'bg-amber-600 text-white'
@@ -101,7 +110,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-white/10 space-y-2">
+      <div className="p-4 border-t border-white/10 space-y-2 flex-shrink-0">
         {simulandoComo && (
           <button
             onClick={resetarAdmin}
@@ -128,5 +137,30 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+  );
+
+  return (
+    <>
+      {/* Desktop: sempre visível */}
+      <div className="hidden lg:flex flex-shrink-0 h-full">
+        {sidebarContent}
+      </div>
+
+      {/* Mobile: overlay + drawer */}
+      {open && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={close}
+          aria-hidden
+        />
+      )}
+      <div
+        className={`fixed inset-y-0 left-0 z-50 lg:hidden transition-transform duration-300 ${
+          open ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {sidebarContent}
+      </div>
+    </>
   );
 }
