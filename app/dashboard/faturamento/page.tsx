@@ -337,87 +337,97 @@ export default function FaturamentoPage() {
         )}
 
         {aba === 'historico' && (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
-              <h2 className="text-sm font-semibold text-gray-900">Histórico de Lançamentos</h2>
-              {filtroUnidade !== 'todas' && (
-                <span className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
-                  <Building2 size={12} /> {filtroUnidade === '1' ? 'Centro' : 'Bairro'}
-                </span>
-              )}
-            </div>
+          <div className="space-y-6">
             {carregando ? (
-              <div className="py-16 text-center text-gray-400 text-sm">Carregando…</div>
-            ) : diasUnicos.length === 0 ? (
-              <div className="py-16 text-center text-gray-400 text-sm">Nenhum lançamento encontrado.</div>
+              <div className="bg-white rounded-xl border border-gray-200 py-16 text-center text-gray-400 text-sm">Carregando…</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm" style={{ minWidth: `${560 + formasAtivas.length * 110}px` }}>
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50">
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Data</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dia</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Centro</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Bairro</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-amber-50">Total</th>
-                      {formasAtivas.map(f => (
-                        <th key={f.id} className="text-right px-3 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                          <span className="inline-flex items-center justify-end gap-1">
-                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: f.cor }} />{f.nome}
-                          </span>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {diasUnicos.map(data => {
-                      const v1 = valorDia(data, '1');
-                      const v2 = valorDia(data, '2');
-                      const total = v1 + v2;
-                      const ds = diasSemana[getDiaSemana(data)];
-                      const isDom = getDiaSemana(data) === 0;
-                      return (
-                        <tr key={data} className={`hover:bg-gray-50 transition-colors ${isDom ? 'opacity-50' : ''}`}>
-                          <td className="px-4 py-2.5 text-gray-700 font-medium">{formatDia(data)}</td>
-                          <td className="px-4 py-2.5">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${isDom ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-600'}`}>{ds}</span>
-                          </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">{v1 > 0 ? formatCurrency(v1) : <span className="text-gray-300">—</span>}</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">{v2 > 0 ? formatCurrency(v2) : <span className="text-gray-300">—</span>}</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-900 bg-amber-50">{total > 0 ? formatCurrency(total) : <span className="text-gray-300">—</span>}</td>
-                          {formasAtivas.map((f, idx) => {
-                            const vf = calcFormaHistorico(total, f.id, idx, formasAtivas);
-                            return (
-                              <td key={f.id} className="px-3 py-2.5 text-right tabular-nums text-gray-600 text-xs whitespace-nowrap">
-                                {total > 0 ? (
-                                  <span style={{ color: vf > 0 ? f.cor : undefined }} className={vf > 0 ? 'font-medium' : 'text-gray-300'}>{vf > 0 ? formatCurrency(vf) : '—'}</span>
-                                ) : <span className="text-gray-300">—</span>}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 border-gray-200 bg-amber-50">
-                      <td colSpan={2} className="px-4 py-3 text-sm font-semibold text-gray-900">Total do período</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-sm font-bold text-amber-800">{formatCurrency(faturamentoData.filter(d => d.unidade_id === '1').reduce((a, b) => a + Number(b.valor), 0))}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-sm font-bold text-amber-800">{formatCurrency(faturamentoData.filter(d => d.unidade_id === '2').reduce((a, b) => a + Number(b.valor), 0))}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-sm font-bold text-amber-800">{formatCurrency(faturamentoData.reduce((a, b) => a + Number(b.valor), 0))}</td>
-                      {formasAtivas.map((f, idx) => {
-                        const totalForma = diasUnicos.reduce((sum, data) => {
-                          const rowTotal = valorDia(data, '1') + valorDia(data, '2');
-                          return sum + calcFormaHistorico(rowTotal, f.id, idx, formasAtivas);
-                        }, 0);
-                        return (
-                          <td key={f.id} className="px-3 py-3 text-right tabular-nums text-sm font-bold text-amber-800 whitespace-nowrap">{formatCurrency(totalForma)}</td>
-                        );
-                      })}
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+              UNIDADES
+                .filter(u => filtroUnidade === 'todas' || filtroUnidade === u.id)
+                .map(u => {
+                  const diasU = Array.from(new Set(
+                    faturamentoData.filter(d => d.unidade_id === u.id).map(d => d.data)
+                  )).sort() as string[];
+                  const totalU = faturamentoData.filter(d => d.unidade_id === u.id).reduce((a, b) => a + Number(b.valor), 0);
+
+                  return (
+                    <div key={u.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                      <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+                        <Building2 size={15} className={u.id === '1' ? 'text-amber-600' : 'text-blue-600'} />
+                        <h2 className="text-sm font-semibold text-gray-900">{u.nome}</h2>
+                        <span className="text-xs text-gray-400 ml-auto">{diasU.length} dia{diasU.length !== 1 ? 's' : ''} lançados</span>
+                      </div>
+                      {diasU.length === 0 ? (
+                        <div className="py-10 text-center text-gray-400 text-sm">Nenhum lançamento para esta unidade.</div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm" style={{ minWidth: `${320 + formasAtivas.length * 110}px` }}>
+                            <thead>
+                              <tr className="border-b border-gray-100 bg-gray-50">
+                                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Data</th>
+                                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dia</th>
+                                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-amber-50">Faturamento</th>
+                                {formasAtivas.map(f => (
+                                  <th key={f.id} className="text-right px-3 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                                    <span className="inline-flex items-center justify-end gap-1">
+                                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: f.cor }} />{f.nome}
+                                    </span>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {diasU.map(data => {
+                                const v = valorDia(data, u.id);
+                                const ds = diasSemana[getDiaSemana(data)];
+                                const isDom = getDiaSemana(data) === 0;
+                                return (
+                                  <tr key={data} className={`hover:bg-gray-50 transition-colors ${isDom ? 'opacity-50' : ''}`}>
+                                    <td className="px-4 py-2.5 text-gray-700 font-medium">{formatDia(data)}</td>
+                                    <td className="px-4 py-2.5">
+                                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${isDom ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-600'}`}>{ds}</span>
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-900 bg-amber-50">
+                                      {v > 0 ? formatCurrency(v) : <span className="text-gray-300">—</span>}
+                                    </td>
+                                    {formasAtivas.map((f, idx) => {
+                                      const vf = calcFormaHistorico(v, f.id, idx, formasAtivas);
+                                      return (
+                                        <td key={f.id} className="px-3 py-2.5 text-right tabular-nums text-gray-600 text-xs whitespace-nowrap">
+                                          {v > 0 ? (
+                                            <span style={{ color: vf > 0 ? f.cor : undefined }} className={vf > 0 ? 'font-medium' : 'text-gray-300'}>
+                                              {vf > 0 ? formatCurrency(vf) : '—'}
+                                            </span>
+                                          ) : <span className="text-gray-300">—</span>}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t-2 border-gray-200 bg-amber-50">
+                                <td colSpan={2} className="px-4 py-3 text-sm font-semibold text-gray-900">Total do período</td>
+                                <td className="px-4 py-3 text-right tabular-nums text-sm font-bold text-amber-800">{formatCurrency(totalU)}</td>
+                                {formasAtivas.map((f, idx) => {
+                                  const totalForma = diasU.reduce((sum, data) => {
+                                    const v = valorDia(data, u.id);
+                                    return sum + calcFormaHistorico(v, f.id, idx, formasAtivas);
+                                  }, 0);
+                                  return (
+                                    <td key={f.id} className="px-3 py-3 text-right tabular-nums text-sm font-bold text-amber-800 whitespace-nowrap">
+                                      {formatCurrency(totalForma)}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
             )}
           </div>
         )}
