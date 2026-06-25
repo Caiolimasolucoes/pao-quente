@@ -201,18 +201,35 @@ export default function IndicadoresPage() {
   const drePrev: DREMes   = filtroUnidade === '1' ? (dreMensalU1.at(-2) ?? EMPTY_DRE) : filtroUnidade === '2' ? (dreMensalU2.at(-2) ?? EMPTY_DRE) : dreMesAnterior;
   const dreMensalBase     = filtroUnidade === '1' ? dreMensalU1 : filtroUnidade === '2' ? dreMensalU2 : dreMensal;
 
-  // 2b — faturamento diário por unidade
+  // 2b — faturamento diário por unidade (respeita filtro de período completo)
   const dadosDiarios = useMemo(() => {
-    const datas = [...new Set(faturamentoDiario.map(f => f.data))].sort();
+    const isMultiMes = mesFim > mesInicio;
+    const datas = [...new Set(faturamentoDiario.map(f => f.data))]
+      .filter(data => {
+        const [y, m] = data.split('-').map(Number);
+        return y === anoRange && (m - 1) >= mesInicio && (m - 1) <= mesFim;
+      })
+      .sort();
     return datas.map(data => {
       const u1 = faturamentoDiario.find(f => f.data === data && f.unidadeId === '1');
       const u2 = faturamentoDiario.find(f => f.data === data && f.unidadeId === '2');
-      const row: Record<string, unknown> = { dia: data.slice(8) };
+      const [, m, d] = data.split('-').map(Number);
+      const label = isMultiMes
+        ? `${String(d).padStart(2, '0')}/${MESES[m - 1]}`
+        : String(d).padStart(2, '0');
+      const row: Record<string, unknown> = { dia: label };
       if (filtroUnidade !== '2') row.Centro = u1?.valor ?? 0;
       if (filtroUnidade !== '1') row.Bairro  = u2?.valor ?? 0;
       return row;
     });
-  }, [filtroUnidade, faturamentoDiario]);
+  }, [filtroUnidade, faturamentoDiario, mesInicio, mesFim, anoRange]);
+
+  const periodoLabelDiario = mesInicio === mesFim
+    ? `${MESES[mesInicio]} ${anoRange}`
+    : `${MESES[mesInicio]}–${MESES[mesFim]} ${anoRange}`;
+  const tickIntervalDiario = dadosDiarios.length > 60
+    ? Math.ceil(dadosDiarios.length / 15) - 1
+    : dadosDiarios.length > 31 ? 6 : 1;
 
   // 2c — média por dia da semana
   const mediaSemanal = useMemo(() => {
@@ -330,12 +347,12 @@ export default function IndicadoresPage() {
 
         {/* ── 2b: Faturamento diário por unidade ────────────── */}
         <section className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-1">Faturamento Diário — Junho 2026</h2>
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">Faturamento Diário — {periodoLabelDiario}</h2>
           <p className="text-xs text-gray-400 mb-4">Uma linha por unidade · dias sem movimento aparecem como zero</p>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={dadosDiarios} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-              <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="dia" tick={{ fontSize: 10 }} interval={tickIntervalDiario} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} width={48} />
               <Tooltip formatter={(v) => typeof v === 'number' ? formatCurrency(v) : v} />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
