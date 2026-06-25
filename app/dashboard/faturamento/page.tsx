@@ -125,30 +125,64 @@ export default function FaturamentoPage() {
     if (totalNum > 0 && !somaBate && somaFormas > 0) { setErroSalvar('Distribua corretamente o valor por forma de pagamento.'); return; }
     setSalvando(true); setErroSalvar(''); setSucesso('');
     const supabase = createClient();
+
+    // Montar payload de meios por dia
+    const meiosPayload: Record<string, number> = {};
+    if (somaBate && formasAtivas.length > 0) {
+      for (const f of formasAtivas) {
+        const val = parseFloat(valoresForma[f.id] || '0') || 0;
+        if (val > 0) meiosPayload[f.id] = val;
+      }
+    }
+
+    // Salvar faturamento diário com meios embutidos
     const { error } = await supabase.from('faturamento_diario').upsert({
       id: `fat-${unidadeLancamento}-${hoje}`,
       unidade_id: unidadeLancamento,
       data: hoje,
       valor: totalNum,
+      meios: meiosPayload,
     }, { onConflict: 'unidade_id,data' });
     if (error) { setErroSalvar('Erro ao salvar: ' + error.message); setSalvando(false); return; }
-    // Salvar distribuição por forma de pagamento
-    if (somaBate && formasAtivas.length > 0) {
-      const [m, ano] = [new Date().getMonth(), new Date().getFullYear()];
+
+    // Recalcular totais mensais de meios_pagamento somando todos os dias do mês
+    if (Object.keys(meiosPayload).length > 0) {
+      const ano = new Date().getFullYear();
+      const mes = new Date().getMonth(); // 0=Jan
+      const mesStr = String(mes + 1).padStart(2, '0');
+      const mesProxStr = String(mes + 2).padStart(2, '0');
+      const { data: diasMes } = await supabase
+        .from('faturamento_diario')
+        .select('meios')
+        .eq('unidade_id', unidadeLancamento)
+        .gte('data', `${ano}-${mesStr}-01`)
+        .lt('data', mes < 11 ? `${ano}-${mesProxStr}-01` : `${ano + 1}-01-01`);
+
+      // Somar formas de todos os dias do mês
+      const totaisMes: Record<string, number> = {};
+      for (const row of diasMes || []) {
+        const m = (row.meios || {}) as Record<string, number>;
+        for (const [formaId, val] of Object.entries(m)) {
+          totaisMes[formaId] = (totaisMes[formaId] || 0) + Number(val);
+        }
+      }
+
+      // Upsert totais mensais corrigidos
       for (const f of formasAtivas) {
-        const val = parseFloat(valoresForma[f.id] || '0') || 0;
-        if (val > 0) {
+        const totalMensal = totaisMes[f.id] || 0;
+        if (totalMensal > 0) {
           await supabase.from('meios_pagamento').upsert({
             unidade_id: unidadeLancamento,
             ano,
-            mes: m,
+            mes,
             forma: f.nome,
-            valor: val,
+            valor: totalMensal,
             cor: f.cor,
           }, { onConflict: 'unidade_id,ano,mes,forma' });
         }
       }
     }
+
     await carregarFaturamento();
     setSalvando(false);
     setSucesso('Faturamento salvo com sucesso!');
@@ -390,7 +424,13 @@ export default function FaturamentoPage() {
                                       {v > 0 ? formatCurrency(v) : <span className="text-gray-300">—</span>}
                                     </td>
                                     {formasAtivas.map((f, idx) => {
-                                      const vf = calcFormaHistorico(v, f.id, idx, formasAtivas);
+                                      const record = faturamentoData.find(d => d.data === data && d.unidade_id === u.id);
+                                      const meios = (record?.meios || {}) as Record<string, number>;
+                                      const temMeiosReais = Object.keys(meios).length > 0;
+                                      // Usar dados reais se disponíveis, senão estimativa
+                                      const vf = temMeiosReais
+                                        ? (Number(meios[f.id]) || 0)
+                                        : calcFormaHistorico(v, f.id, idx, formasAtivas);
                                       return (
                                         <td key={f.id} className="px-3 py-2.5 text-right tabular-nums text-gray-600 text-xs whitespace-nowrap">
                                           {v > 0 ? (
@@ -411,8 +451,14 @@ export default function FaturamentoPage() {
                                 <td className="px-4 py-3 text-right tabular-nums text-sm font-bold text-amber-800">{formatCurrency(totalU)}</td>
                                 {formasAtivas.map((f, idx) => {
                                   const totalForma = diasU.reduce((sum, data) => {
+                                    const record = faturamentoData.find(d => d.data === data && d.unidade_id === u.id);
+                                    const meios = (record?.meios || {}) as Record<string, number>;
+                                    const temMeiosReais = Object.keys(meios).length > 0;
                                     const v = valorDia(data, u.id);
-                                    return sum + calcFormaHistorico(v, f.id, idx, formasAtivas);
+                                    const vf = temMeiosReais
+                                      ? (Number(meios[f.id]) || 0)
+                                      : calcFormaHistorico(v, f.id, idx, formasAtivas);
+                                    return sum + vf;
                                   }, 0);
                                   return (
                                     <td key={f.id} className="px-3 py-3 text-right tabular-nums text-sm font-bold text-amber-800 whitespace-nowrap">
