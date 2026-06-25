@@ -259,10 +259,37 @@ export default function IndicadoresPage() {
   const crescU1 = lastU1 ? calcPercent(lastU1.faturamentoTotal - (comparativoU1.at(-1)?.['2025'] ?? 0), comparativoU1.at(-1)?.['2025'] ?? 1) : 0;
   const crescU2 = lastU2 ? calcPercent(lastU2.faturamentoTotal - (comparativoU2.at(-1)?.['2025'] ?? 0), comparativoU2.at(-1)?.['2025'] ?? 1) : 0;
 
-  // 2e — evolução combinada faturamento + despesas + lucro
-  const evolucao = dreMensalBase.map(d => ({
-    mes: d.mes, Faturamento: d.faturamentoTotal, Despesas: d.despesasTotal, Lucro: d.lucro,
-  }));
+  // 2e — evolução combinada faturamento + despesas + lucro (todos os anos do DB, cross-ano)
+  const evolucao = useMemo(() => {
+    type Row = { ano: number; mes: number; fat: number; desp: number; lucro: number };
+    let rows: Row[];
+
+    if (filtroUnidade !== 'todas') {
+      rows = dreDB
+        .filter(r => r.unidade_id === filtroUnidade)
+        .sort((a, b) => a.ano !== b.ano ? a.ano - b.ano : a.mes - b.mes)
+        .map(r => ({ ano: r.ano, mes: r.mes, fat: Number(r.faturamento_total) || 0, desp: Number(r.despesas_total) || 0, lucro: Number(r.lucro) || 0 }));
+    } else {
+      const byKey: Record<string, Row> = {};
+      for (const r of dreDB) {
+        const key = `${r.ano}-${r.mes}`;
+        if (!byKey[key]) byKey[key] = { ano: r.ano, mes: r.mes, fat: 0, desp: 0, lucro: 0 };
+        byKey[key].fat  += Number(r.faturamento_total) || 0;
+        byKey[key].desp += Number(r.despesas_total)    || 0;
+        byKey[key].lucro += Number(r.lucro)            || 0;
+      }
+      rows = Object.values(byKey).sort((a, b) => a.ano !== b.ano ? a.ano - b.ano : a.mes - b.mes);
+    }
+
+    const anos = [...new Set(rows.map(r => r.ano))];
+    const multiAno = anos.length > 1;
+    return rows.map(r => ({
+      mes: multiAno ? `${MESES[r.mes]}/${String(r.ano).slice(2)}` : MESES[r.mes],
+      Faturamento: r.fat,
+      Despesas:    r.desp,
+      Lucro:       r.lucro,
+    }));
+  }, [dreDB, filtroUnidade]);
 
   // 2g — pizza despesas por categoria
   const pieData = [
@@ -431,7 +458,11 @@ export default function IndicadoresPage() {
         {/* ── 2e: Faturamento + Despesas + Lucro combinado ──── */}
         <section className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="text-sm font-semibold text-gray-900 mb-1">Evolução: Faturamento, Despesas e Lucro</h2>
-          <p className="text-xs text-gray-400 mb-4">Jan–Jun 2026 · três linhas no mesmo gráfico</p>
+          <p className="text-xs text-gray-400 mb-4">
+            {evolucao.length > 0
+              ? `${evolucao[0].mes} → ${evolucao.at(-1)!.mes} · ${evolucao.length} meses`
+              : 'Sem dados'} · três linhas no mesmo gráfico
+          </p>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={evolucao} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
