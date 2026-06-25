@@ -68,6 +68,7 @@ export default function FaturamentoPage() {
   const { filtroUnidade }               = useUnit();
   const [valorLancamento, setValorLancamento] = useState('');
   const [unidadeLancamento, setUnidadeLancamento] = useState('1');
+  const [dataLancamento, setDataLancamento]   = useState('');
   const [valoresForma, setValoresForma] = useState<Record<string, string>>({});
   const [salvando, setSalvando]         = useState(false);
   const [sucesso, setSucesso]           = useState('');
@@ -79,6 +80,8 @@ export default function FaturamentoPage() {
   const [carregando, setCarregando]           = useState(true);
 
   const hoje = new Date().toISOString().split('T')[0];
+
+  useEffect(() => { if (!dataLancamento) setDataLancamento(hoje); }, [hoje]);
 
   async function carregarFaturamento() {
     const supabase = createClient();
@@ -135,11 +138,13 @@ export default function FaturamentoPage() {
       }
     }
 
+    const dataSalvar = dataLancamento || hoje;
+
     // Salvar faturamento diário com meios embutidos
     const { error } = await supabase.from('faturamento_diario').upsert({
-      id: `fat-${unidadeLancamento}-${hoje}`,
+      id: `fat-${unidadeLancamento}-${dataSalvar}`,
       unidade_id: unidadeLancamento,
-      data: hoje,
+      data: dataSalvar,
       valor: totalNum,
       meios: meiosPayload,
     }, { onConflict: 'unidade_id,data' });
@@ -147,8 +152,9 @@ export default function FaturamentoPage() {
 
     // Recalcular totais mensais de meios_pagamento somando todos os dias do mês
     if (Object.keys(meiosPayload).length > 0) {
-      const ano = new Date().getFullYear();
-      const mes = new Date().getMonth(); // 0=Jan
+      const dataObj = new Date(dataSalvar + 'T12:00:00');
+      const ano = dataObj.getFullYear();
+      const mes = dataObj.getMonth(); // 0=Jan
       const mesStr = String(mes + 1).padStart(2, '0');
       const mesProxStr = String(mes + 2).padStart(2, '0');
       const { data: diasMes } = await supabase
@@ -188,6 +194,7 @@ export default function FaturamentoPage() {
     setSucesso('Faturamento salvo com sucesso!');
     setValorLancamento('');
     setValoresForma({});
+    setDataLancamento(hoje);
     setTimeout(() => setSucesso(''), 4000);
   }
 
@@ -256,8 +263,25 @@ export default function FaturamentoPage() {
         {aba === 'lancamento' && (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-sm font-semibold text-gray-900 mb-4">Lançar Faturamento — {formatDia(hoje)}/{new Date().getFullYear()}</h2>
+              <h2 className="text-sm font-semibold text-gray-900 mb-4">
+                Lançar Faturamento — {dataLancamento ? formatDia(dataLancamento) : formatDia(hoje)}/{(dataLancamento || hoje).split('-')[0]}
+              </h2>
               <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Data do Lançamento</label>
+                  <input
+                    type="date"
+                    value={dataLancamento || hoje}
+                    max={hoje}
+                    onChange={e => setDataLancamento(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  {dataLancamento && dataLancamento !== hoje && (
+                    <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                      ⚠ Lançamento retroativo — será salvo na data selecionada
+                    </p>
+                  )}
+                </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">Unidade</label>
                   <div className="grid grid-cols-2 gap-3">
