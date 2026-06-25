@@ -413,11 +413,22 @@ export default function IndicadoresPage() {
                 {/* Faturamento */}
                 <tr className="border-b border-gray-100 bg-amber-50">
                   <td className="px-5 py-3 font-bold text-gray-900">Faturamento Total</td>
-                  {dreMensalBase.map(m => (
-                    <td key={m.mes} className="px-3 py-3 text-right font-medium text-gray-800 tabular-nums text-xs whitespace-nowrap">
-                      {formatCurrency(m.faturamentoTotal)}
-                    </td>
-                  ))}
+                  {dreMensalBase.map(m => {
+                    const unidKey = filtroUnidade === '1' ? '1' : filtroUnidade === '2' ? '2' : 'todas';
+                    const metaFat = getMetaFat('mensal', anoRange, unidKey);
+                    const pctFat = metaFat > 0 ? (m.faturamentoTotal / metaFat) * 100 : null;
+                    const cor = pctFat === null ? null : pctFat >= 100 ? 'text-emerald-600' : pctFat >= 85 ? 'text-amber-600' : 'text-red-600';
+                    return (
+                      <td key={m.mes} className="px-3 py-3 text-right font-medium text-gray-800 tabular-nums text-xs whitespace-nowrap">
+                        {formatCurrency(m.faturamentoTotal)}
+                        {cor && pctFat !== null && (
+                          <span className={`block text-[9px] font-semibold leading-none mt-0.5 ${cor}`}>
+                            {pctFat >= 100 ? '✓' : '↓'} {pctFat.toFixed(0)}% meta
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
                   <td className="px-5 py-3 text-right font-bold text-amber-700 tabular-nums bg-amber-50/60 whitespace-nowrap">
                     {formatCurrency(dreMensalBase.reduce((a, m) => a + m.faturamentoTotal, 0))}
                   </td>
@@ -475,11 +486,26 @@ export default function IndicadoresPage() {
                           )}
                         </span>
                       </td>
-                      {vals.map((v, i) => (
-                        <td key={i} className="px-3 py-2.5 text-right text-gray-600 tabular-nums text-xs whitespace-nowrap">
-                          {formatCurrency(v)}
-                        </td>
-                      ))}
+                      {vals.map((v, i) => {
+                        const m = dreMensalBase[i];
+                        const unidKey = filtroUnidade === '1' ? '1' : filtroUnidade === '2' ? '2' : 'todas';
+                        const metaPct = getMetaDesp(linha.key, anoRange, unidKey);
+                        const atualPctM = m.faturamentoTotal > 0 ? (v / m.faturamentoTotal) * 100 : null;
+                        const cor = (metaPct === null || atualPctM === null) ? null
+                          : atualPctM <= metaPct ? 'text-emerald-600'
+                          : atualPctM <= metaPct * 1.15 ? 'text-amber-600'
+                          : 'text-red-600';
+                        return (
+                          <td key={i} className="px-3 py-2.5 text-right text-gray-600 tabular-nums text-xs whitespace-nowrap">
+                            {formatCurrency(v)}
+                            {cor && atualPctM !== null && (
+                              <span className={`block text-[9px] font-semibold leading-none mt-0.5 ${cor}`}>
+                                {atualPctM <= (metaPct ?? 0) ? '✓' : '↑'} {atualPctM.toFixed(1)}%
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
                       <td className="px-5 py-2.5 text-right font-semibold text-gray-800 tabular-nums bg-amber-50/30 whitespace-nowrap">
                         {formatCurrency(total)}
                       </td>
@@ -513,11 +539,22 @@ export default function IndicadoresPage() {
                 {/* Resultado */}
                 <tr className="border-t-2 border-gray-200">
                   <td className="px-5 py-3 font-bold text-gray-900 bg-emerald-50">Resultado</td>
-                  {dreMensalBase.map(m => (
-                    <td key={m.mes} className={`px-3 py-3 text-right font-bold tabular-nums text-xs whitespace-nowrap ${m.lucro >= 0 ? 'text-emerald-700 bg-emerald-50/60' : 'text-red-700 bg-red-50/60'}`}>
-                      {formatCurrency(m.lucro)}
-                    </td>
-                  ))}
+                  {dreMensalBase.map(m => {
+                    const unidKey = filtroUnidade === '1' ? '1' : filtroUnidade === '2' ? '2' : 'todas';
+                    const metaLucroM = getMetaLucro('mensal', anoRange, unidKey);
+                    const pctLucro = metaLucroM > 0 ? (m.lucro / metaLucroM) * 100 : null;
+                    const cor = pctLucro === null ? null : pctLucro >= 100 ? 'text-emerald-700' : pctLucro >= 85 ? 'text-amber-600' : 'text-red-600';
+                    return (
+                      <td key={m.mes} className={`px-3 py-3 text-right font-bold tabular-nums text-xs whitespace-nowrap ${m.lucro >= 0 ? 'text-emerald-700 bg-emerald-50/60' : 'text-red-700 bg-red-50/60'}`}>
+                        {formatCurrency(m.lucro)}
+                        {cor && pctLucro !== null && (
+                          <span className={`block text-[9px] font-semibold leading-none mt-0.5 ${cor}`}>
+                            {pctLucro >= 100 ? '✓' : '↓'} {pctLucro.toFixed(0)}% meta
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
                   {(() => {
                     const totalLucro = dreMensalBase.reduce((a, m) => a + m.lucro, 0);
                     return (
