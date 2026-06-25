@@ -136,17 +136,23 @@ export default function IndicadoresPage() {
   const [alertaAberto, setAlertaAberto]  = useState<string | null>(null);
 
   // ── Carrega dados reais do Supabase ────────────────────────────
-  const [dreDB, setDreDB]           = useState<any[]>([]);
+  const [dreDB, setDreDB]             = useState<any[]>([]);
   const [fatDiarioDB, setFatDiarioDB] = useState<any[]>([]);
+  const [boletosDB, setBoletosDB]     = useState<any[]>([]);
+  const [comprasDB, setComprasDB]     = useState<any[]>([]);
 
   useEffect(() => {
     const supabase = createClient();
     Promise.all([
       supabase.from('dre_mensal').select('*').order('ano').order('mes'),
       supabase.from('faturamento_diario').select('*').order('data'),
-    ]).then(([{ data: dre }, { data: fat }]) => {
+      supabase.from('boletos').select('categoria,sub_categoria,valor,unidade_id,vencimento,status'),
+      supabase.from('compras').select('categoria,valor_total,unidade_id,data'),
+    ]).then(([{ data: dre }, { data: fat }, { data: bol }, { data: cpr }]) => {
       setDreDB(dre || []);
       setFatDiarioDB(fat || []);
+      setBoletosDB(bol || []);
+      setComprasDB(cpr || []);
     });
   }, []);
 
@@ -254,6 +260,49 @@ export default function IndicadoresPage() {
 
   // 2h — curva ABC apenas A e B
   const abAB = curvaABC.filter(x => x.classe !== 'C');
+
+  // Meses inteiros (0-11) presentes na base filtrada por unidade
+  const dreBaseRows = filtroUnidade === '2' ? dreU2Rows : dreU1Rows;
+  const mesesBase: number[] = dreBaseRows.map(r => Number(r.mes));
+
+  function getSubcatsReais(catKey: string, catNome: string): { nome: string; porMes: number[]; total: number }[] {
+    const items: { sub: string; mes: number; val: number }[] = [];
+
+    if (catKey === 'compraInsumos') {
+      const fonte = filtroUnidade !== 'todas'
+        ? comprasDB.filter(c => c.unidade_id === filtroUnidade)
+        : comprasDB;
+      for (const c of fonte) {
+        const mes = new Date((c.data as string) + 'T12:00:00').getMonth();
+        if (!mesesBase.includes(mes)) continue;
+        items.push({ sub: c.categoria || 'Outros', mes, val: Number(c.valor_total) || 0 });
+      }
+    } else {
+      const fonte = filtroUnidade !== 'todas'
+        ? boletosDB.filter(b => b.unidade_id === filtroUnidade)
+        : boletosDB;
+      for (const b of fonte.filter(b => b.categoria === catNome)) {
+        const mes = new Date((b.vencimento as string) + 'T12:00:00').getMonth();
+        if (!mesesBase.includes(mes)) continue;
+        items.push({ sub: b.sub_categoria || 'Outros', mes, val: Number(b.valor) || 0 });
+      }
+    }
+
+    const grouped: Record<string, Record<number, number>> = {};
+    for (const { sub, mes, val } of items) {
+      if (!grouped[sub]) grouped[sub] = {};
+      grouped[sub][mes] = (grouped[sub][mes] || 0) + val;
+    }
+
+    return Object.entries(grouped)
+      .map(([nome, byMes]) => {
+        const porMes = mesesBase.map(m => byMes[m] || 0);
+        const total = porMes.reduce((a, b) => a + b, 0);
+        return { nome, porMes, total };
+      })
+      .filter(s => s.total > 0)
+      .sort((a, b) => b.total - a.total);
+  }
 
   function toggleDre(key: string) {
     setDreExpanded(prev => {
@@ -439,8 +488,12 @@ export default function IndicadoresPage() {
                   const vals   = dreMensalBase.map(m => m[linha.key] as number);
                   const total  = vals.reduce((a, v) => a + v, 0);
                   if (total === 0) return null;
-                  const catBoleto = linha.catNome ? categoriasBoleto.find(c => c.nome === linha.catNome) : undefined;
-                  const subcats   = catBoleto ? distribuirSubs(total, catBoleto.subcategorias) : [];
+                  const subcatsReais = linha.catNome ? getSubcatsReais(linha.key, linha.catNome) : [];
+                  const temReais = subcatsReais.length > 0;
+                  // fallback estimado só se não houver dados reais
+                  const catBoleto = (!temReais && linha.catNome) ? categoriasBoleto.find(c => c.nome === linha.catNome) : undefined;
+                  const subcatsEst = catBoleto ? distribuirSubs(total, catBoleto.subcategorias) : [];
+                  const hasExpand = temReais ? true : subcatsEst.length > 0;
                   const expanded  = dreExpanded.has(linha.key);
 
                   // Meta % — compara com % do faturamento acumulado
@@ -468,12 +521,12 @@ export default function IndicadoresPage() {
                   return [
                     <tr
                       key={linha.key}
-                      className={`border-b border-gray-50 hover:bg-gray-50 ${subcats.length > 0 ? 'cursor-pointer' : ''} ${expanded ? 'bg-gray-50' : ''}`}
-                      onClick={() => subcats.length > 0 && toggleDre(linha.key)}
+                      className={`border-b border-gray-50 hover:bg-gray-50 ${hasExpand ? 'cursor-pointer' : ''} ${expanded ? 'bg-gray-50' : ''}`}
+                      onClick={() => hasExpand && toggleDre(linha.key)}
                     >
                       <td className="px-5 py-2.5 text-gray-700">
                         <span className="flex items-center gap-2">
-                          {subcats.length > 0 ? (
+                          {hasExpand ? (
                             expanded
                               ? <ChevronDown size={14} className="text-amber-600 flex-shrink-0" />
                               : <ChevronRight size={14} className="text-gray-400 flex-shrink-0" />
@@ -511,10 +564,23 @@ export default function IndicadoresPage() {
                       </td>
                       {metaCell}
                     </tr>,
-                    ...(expanded ? subcats.map(s => (
+                    ...(expanded && temReais ? subcatsReais.map(s => (
+                      <tr key={`${linha.key}-${s.nome}`} className="border-b border-gray-50 bg-gray-50/60">
+                        <td className="pl-10 pr-5 py-2 text-xs text-gray-600 font-medium">{s.nome}</td>
+                        {s.porMes.map((v, i) => (
+                          <td key={i} className="px-3 py-2 text-right text-xs tabular-nums whitespace-nowrap text-gray-600">
+                            {v > 0 ? formatCurrency(v) : <span className="text-gray-200">—</span>}
+                          </td>
+                        ))}
+                        <td className="px-5 py-2 text-right text-xs text-gray-700 tabular-nums font-semibold bg-amber-50/30 whitespace-nowrap">
+                          {formatCurrency(s.total)}
+                        </td>
+                        <td className="px-3 py-2 text-center text-gray-300 text-xs">—</td>
+                      </tr>
+                    )) : expanded && subcatsEst.length > 0 ? subcatsEst.map(s => (
                       <tr key={`${linha.key}-${s.nome}`} className="border-b border-gray-50 bg-gray-50/60">
                         <td className="pl-10 pr-5 py-2 text-xs text-gray-500">{s.nome}</td>
-                        <td colSpan={dreMensalBase.length} className="px-3 py-2 text-xs text-gray-400 text-center italic">distribuição estimada do acumulado</td>
+                        <td colSpan={dreMensalBase.length} className="px-3 py-2 text-xs text-gray-400 text-center italic">estimativa</td>
                         <td className="px-5 py-2 text-right text-xs text-gray-600 tabular-nums font-medium bg-amber-50/30">
                           {formatCurrency(s.valor)}
                         </td>
