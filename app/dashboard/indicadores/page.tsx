@@ -1,13 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Header from '@/components/layout/Header';
-import {
-  dreMensal, dreMensalU1, dreMensalU2,
-  dreAtual, dreAtualU1, dreAtualU2, dreMesAnterior,
-  faturamentoDiario, curvaABC, categoriasBoleto,
-} from '@/lib/mock-data';
+import { curvaABC, categoriasBoleto } from '@/lib/mock-data';
 import { formatCurrency, formatPercent, calcPercent, calcVariation } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
 import { useUnit } from '@/contexts/UnitContext';
 import { useMetas, DEFAULT_DESP } from '@/contexts/MetasContext';
 import { useDateRange } from '@/contexts/DateRangeContext';
@@ -105,6 +102,32 @@ function KpiIndicador({
   );
 }
 
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+function mapDre(row: any): DREMes {
+  return {
+    mes: MESES[row.mes] ?? String(row.mes),
+    faturamentoTotal: Number(row.faturamento_total) || 0,
+    faturamentoReal:  Number(row.faturamento_real)  || 0,
+    compraInsumos:    Number(row.compra_insumos)    || 0,
+    folhaPagamento:   Number(row.folha_pagamento)   || 0,
+    impostos:         Number(row.impostos)          || 0,
+    despesasAdm:      Number(row.despesas_adm)      || 0,
+    manutencao:       Number(row.manutencao)        || 0,
+    investimento:     Number(row.investimento)      || 0,
+    proLabore:        Number(row.pro_labore)        || 0,
+    retiraSocio:      Number(row.retira_socio)      || 0,
+    despesasTotal:    Number(row.despesas_total)    || 0,
+    lucro:            Number(row.lucro)             || 0,
+  };
+}
+
+const EMPTY_DRE: DREMes = {
+  mes: '—', faturamentoTotal: 0, faturamentoReal: 0, compraInsumos: 0,
+  folhaPagamento: 0, impostos: 0, despesasAdm: 0, manutencao: 0,
+  investimento: 0, proLabore: 0, retiraSocio: 0, despesasTotal: 0, lucro: 0,
+};
+
 export default function IndicadoresPage() {
   const { filtroUnidade } = useUnit();
   const { getMetaDesp, getMetaLucro, getMetaFat } = useMetas();
@@ -112,8 +135,64 @@ export default function IndicadoresPage() {
   const [dreExpanded, setDreExpanded] = useState<Set<string>>(new Set());
   const [alertaAberto, setAlertaAberto]  = useState<string | null>(null);
 
+  // ── Carrega dados reais do Supabase ────────────────────────────
+  const [dreDB, setDreDB]           = useState<any[]>([]);
+  const [fatDiarioDB, setFatDiarioDB] = useState<any[]>([]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    Promise.all([
+      supabase.from('dre_mensal').select('*').order('ano').order('mes'),
+      supabase.from('faturamento_diario').select('*').order('data'),
+    ]).then(([{ data: dre }, { data: fat }]) => {
+      setDreDB(dre || []);
+      setFatDiarioDB(fat || []);
+    });
+  }, []);
+
+  // Deriva arrays no mesmo formato que antes (camelCase)
+  const dreU1Rows = dreDB.filter(r => r.unidade_id === '1');
+  const dreU2Rows = dreDB.filter(r => r.unidade_id === '2');
+
+  const dreMensalU1: DREMes[] = dreU1Rows.map(mapDre);
+  const dreMensalU2: DREMes[] = dreU2Rows.map(mapDre);
+
+  const dreMensal: DREMes[] = dreU1Rows.map((row, i) => {
+    const u2 = dreU2Rows[i];
+    const u1m = mapDre(row);
+    if (!u2) return u1m;
+    const u2m = mapDre(u2);
+    return {
+      mes: u1m.mes,
+      faturamentoTotal: u1m.faturamentoTotal + u2m.faturamentoTotal,
+      faturamentoReal:  u1m.faturamentoReal  + u2m.faturamentoReal,
+      compraInsumos:    u1m.compraInsumos    + u2m.compraInsumos,
+      folhaPagamento:   u1m.folhaPagamento   + u2m.folhaPagamento,
+      impostos:         u1m.impostos         + u2m.impostos,
+      despesasAdm:      u1m.despesasAdm      + u2m.despesasAdm,
+      manutencao:       u1m.manutencao       + u2m.manutencao,
+      investimento:     u1m.investimento     + u2m.investimento,
+      proLabore:        u1m.proLabore        + u2m.proLabore,
+      retiraSocio:      u1m.retiraSocio      + u2m.retiraSocio,
+      despesasTotal:    u1m.despesasTotal    + u2m.despesasTotal,
+      lucro:            u1m.lucro            + u2m.lucro,
+    };
+  });
+
+  const dreAtualU1     = dreMensalU1.at(-1)  ?? EMPTY_DRE;
+  const dreAtualU2     = dreMensalU2.at(-1)  ?? EMPTY_DRE;
+  const dreAtual       = dreMensal.at(-1)    ?? EMPTY_DRE;
+  const dreMesAnterior = dreMensal.at(-2)    ?? EMPTY_DRE;
+
+  // Adapta faturamento_diario para o formato camelCase esperado pelo display
+  const faturamentoDiario = fatDiarioDB.map((d: any) => ({
+    data: d.data,
+    unidadeId: d.unidade_id,
+    valor: Number(d.valor) || 0,
+  }));
+
   const dreBase: DREMes   = filtroUnidade === '1' ? dreAtualU1 : filtroUnidade === '2' ? dreAtualU2 : dreAtual;
-  const drePrev: DREMes   = filtroUnidade === '1' ? dreMensalU1.at(-2)! : filtroUnidade === '2' ? dreMensalU2.at(-2)! : dreMesAnterior;
+  const drePrev: DREMes   = filtroUnidade === '1' ? (dreMensalU1.at(-2) ?? EMPTY_DRE) : filtroUnidade === '2' ? (dreMensalU2.at(-2) ?? EMPTY_DRE) : dreMesAnterior;
   const dreMensalBase     = filtroUnidade === '1' ? dreMensalU1 : filtroUnidade === '2' ? dreMensalU2 : dreMensal;
 
   // 2b — faturamento diário por unidade
@@ -127,7 +206,7 @@ export default function IndicadoresPage() {
       if (filtroUnidade !== '1') row.Bairro  = u2?.valor ?? 0;
       return row;
     });
-  }, [filtroUnidade]);
+  }, [filtroUnidade, faturamentoDiario]);
 
   // 2c — média por dia da semana
   const mediaSemanal = useMemo(() => {
@@ -146,14 +225,16 @@ export default function IndicadoresPage() {
       if (filtroUnidade !== '1') row.Bairro  = g[i].b.length ? Math.round(g[i].b.reduce((a, b) => a + b, 0) / g[i].b.length) : 0;
       return row;
     });
-  }, [filtroUnidade]);
+  }, [filtroUnidade, faturamentoDiario]);
 
-  // 2d — comparativo anual (mock ano anterior = ~87% com crescimento linear)
+  // 2d — comparativo anual (ano anterior estimado como ~85% do atual)
   const comparativoU1 = dreMensalU1.map((d, i) => ({ mes: d.mes, '2026': d.faturamentoTotal, '2025': Math.round(d.faturamentoTotal * (0.84 + i * 0.01)) }));
   const comparativoU2 = dreMensalU2.map((d, i) => ({ mes: d.mes, '2026': d.faturamentoTotal, '2025': Math.round(d.faturamentoTotal * (0.83 + i * 0.012)) }));
 
-  const crescU1 = calcPercent(dreMensalU1.at(-1)!.faturamentoTotal - comparativoU1.at(-1)!['2025'], comparativoU1.at(-1)!['2025']);
-  const crescU2 = calcPercent(dreMensalU2.at(-1)!.faturamentoTotal - comparativoU2.at(-1)!['2025'], comparativoU2.at(-1)!['2025']);
+  const lastU1 = dreMensalU1.at(-1);
+  const lastU2 = dreMensalU2.at(-1);
+  const crescU1 = lastU1 ? calcPercent(lastU1.faturamentoTotal - (comparativoU1.at(-1)?.['2025'] ?? 0), comparativoU1.at(-1)?.['2025'] ?? 1) : 0;
+  const crescU2 = lastU2 ? calcPercent(lastU2.faturamentoTotal - (comparativoU2.at(-1)?.['2025'] ?? 0), comparativoU2.at(-1)?.['2025'] ?? 1) : 0;
 
   // 2e — evolução combinada faturamento + despesas + lucro
   const evolucao = dreMensalBase.map(d => ({

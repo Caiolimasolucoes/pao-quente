@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
-import { produtos, fornecedores, categoriasCompra, categoriasBoleto, unidades, unidadesPadaria } from '@/lib/mock-data';
 import { Plus, Pencil, Building2, X, Check, CreditCard, Target, Save } from 'lucide-react';
 import { useFormasPagamento } from '@/contexts/FormasPagamentoContext';
 import { useMetas, DEFAULT_DESP } from '@/contexts/MetasContext';
 import type { MetaFaturamento, MetaDespesaCategoria, MetaLucro } from '@/contexts/MetasContext';
+import { createClient } from '@/lib/supabase/client';
 
 type Aba = 'unidades' | 'produtos' | 'fornecedores' | 'cat-compras' | 'cat-boletos' | 'unid-medida' | 'pagamento' | 'metas';
 
@@ -62,6 +62,33 @@ export default function CadastrosPage() {
   const [aba, setAba] = useState<Aba>('unidades');
   const [catExpand, setCatExpand] = useState<string | null>(null);
   const { formas, toggleForma, adicionarForma, removerForma } = useFormasPagamento();
+
+  // DB state
+  const [unidadesPadaria, setUnidadesPadaria] = useState<any[]>([]);
+  const [produtos, setProdutos]               = useState<any[]>([]);
+  const [fornecedores, setFornecedores]       = useState<any[]>([]);
+  const [categoriasCompra, setCategoriasCompra] = useState<any[]>([]);
+  const [categoriasBoleto, setCategoriasBoleto] = useState<any[]>([]);
+  const [unidades, setUnidades]               = useState<any[]>([]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    Promise.all([
+      supabase.from('unidades').select('*').order('id'),
+      supabase.from('produtos').select('*').order('nome'),
+      supabase.from('fornecedores').select('*').order('nome'),
+      supabase.from('categorias_compra').select('*').order('nome'),
+      supabase.from('categorias_boleto').select('*').order('nome'),
+      supabase.from('unidades_medida').select('*').order('sigla'),
+    ]).then(([u, p, f, cc, cb, um]) => {
+      setUnidadesPadaria(u.data || []);
+      setProdutos(p.data || []);
+      setFornecedores(f.data || []);
+      setCategoriasCompra(cc.data || []);
+      setCategoriasBoleto(cb.data?.map((c: any) => ({ ...c, subcategorias: c.subcategorias || [] })) || []);
+      setUnidades(um.data || []);
+    });
+  }, []);
   const [novaForma, setNovaForma] = useState('');
   const [novaCor, setNovaCor] = useState('#10B981');
   const [adicionando, setAdicionando] = useState(false);
@@ -298,7 +325,7 @@ export default function CadastrosPage() {
                   {catExpand === cat.id && (
                     <div className="px-5 pb-4">
                       <div className="flex flex-wrap gap-2 pl-5">
-                        {cat.subcategorias.map((sub) => (
+                        {cat.subcategorias.map((sub: string) => (
                           <span key={sub} className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-3 py-1 rounded-full">
                             {sub}
                             <button className="text-gray-400 hover:text-amber-600 ml-0.5"><Pencil size={10} /></button>

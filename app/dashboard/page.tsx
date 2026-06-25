@@ -1,20 +1,49 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import KpiCard from '@/components/ui/KpiCard';
 import RevenueLineChart from '@/components/charts/RevenueLineChart';
 import ExpensePieChart from '@/components/charts/ExpensePieChart';
-import {
-  dreMensal, dreAtual, dreMesAnterior,
-  dreAtualU1, dreAtualU2,
-  insights, meiosPagamento, unidadesPadaria,
-} from '@/lib/mock-data';
+import { insights, meiosPagamento } from '@/lib/mock-data';
 import { formatCurrency, calcVariation, formatPercent, calcPercent } from '@/lib/utils';
 import { useUnit } from '@/contexts/UnitContext';
 import { useMetas } from '@/contexts/MetasContext';
 import { useDateRange } from '@/contexts/DateRangeContext';
 import { DollarSign, ShoppingBag, TrendingUp, AlertTriangle, CheckCircle, Info, Building2, Target } from 'lucide-react';
 import { MetaGauge } from '@/components/ui/MetaGauge';
+import { createClient } from '@/lib/supabase/client';
+import type { DREMes } from '@/types';
+
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const UNIDADES_PADARIA = [
+  { id: '1', nome: 'Unidade Centro', cnpj: '', endereco: '', responsavel: '' },
+  { id: '2', nome: 'Unidade Bairro', cnpj: '', endereco: '', responsavel: '' },
+];
+
+function mapDre(row: any): DREMes {
+  return {
+    mes: MESES[row.mes] ?? String(row.mes),
+    faturamentoTotal: Number(row.faturamento_total) || 0,
+    faturamentoReal:  Number(row.faturamento_real)  || 0,
+    compraInsumos:    Number(row.compra_insumos)    || 0,
+    folhaPagamento:   Number(row.folha_pagamento)   || 0,
+    impostos:         Number(row.impostos)          || 0,
+    despesasAdm:      Number(row.despesas_adm)      || 0,
+    manutencao:       Number(row.manutencao)        || 0,
+    investimento:     Number(row.investimento)      || 0,
+    proLabore:        Number(row.pro_labore)        || 0,
+    retiraSocio:      Number(row.retira_socio)      || 0,
+    despesasTotal:    Number(row.despesas_total)    || 0,
+    lucro:            Number(row.lucro)             || 0,
+  };
+}
+
+const EMPTY_DRE: DREMes = {
+  mes: '—', faturamentoTotal: 0, faturamentoReal: 0, compraInsumos: 0,
+  folhaPagamento: 0, impostos: 0, despesasAdm: 0, manutencao: 0,
+  investimento: 0, proLabore: 0, retiraSocio: 0, despesasTotal: 0, lucro: 0,
+};
 
 const insightIconMap = {
   alerta:   { Icon: AlertTriangle, bg: 'bg-red-50',     text: 'text-red-600',     border: 'border-red-100' },
@@ -27,8 +56,33 @@ export default function DashboardPage() {
   const { getMetaFat, getMetaLucro } = useMetas();
   const { mesInicio, mesFim, ano } = useDateRange();
 
+  const [dreDB, setDreDB] = useState<any[]>([]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.from('dre_mensal').select('*').order('ano').order('mes').then(({ data }) => setDreDB(data || []));
+  }, []);
+
+  const dreU1Rows = dreDB.filter(r => r.unidade_id === '1');
+  const dreU2Rows = dreDB.filter(r => r.unidade_id === '2');
+  const dreMensalU1: DREMes[] = dreU1Rows.map(mapDre);
+  const dreMensalU2: DREMes[] = dreU2Rows.map(mapDre);
+
+  const dreMensal: DREMes[] = dreU1Rows.map((row, i) => {
+    const u2 = dreU2Rows[i];
+    const u1m = mapDre(row);
+    if (!u2) return u1m;
+    const u2m = mapDre(u2);
+    return { ...u1m, mes: u1m.mes, faturamentoTotal: u1m.faturamentoTotal + u2m.faturamentoTotal, faturamentoReal: u1m.faturamentoReal + u2m.faturamentoReal, compraInsumos: u1m.compraInsumos + u2m.compraInsumos, folhaPagamento: u1m.folhaPagamento + u2m.folhaPagamento, impostos: u1m.impostos + u2m.impostos, despesasAdm: u1m.despesasAdm + u2m.despesasAdm, manutencao: u1m.manutencao + u2m.manutencao, investimento: u1m.investimento + u2m.investimento, proLabore: u1m.proLabore + u2m.proLabore, retiraSocio: u1m.retiraSocio + u2m.retiraSocio, despesasTotal: u1m.despesasTotal + u2m.despesasTotal, lucro: u1m.lucro + u2m.lucro };
+  });
+
+  const dreAtualU1     = dreMensalU1.at(-1)  ?? EMPTY_DRE;
+  const dreAtualU2     = dreMensalU2.at(-1)  ?? EMPTY_DRE;
+  const dreAtual       = dreMensal.at(-1)    ?? EMPTY_DRE;
+  const dreMesAnterior = dreMensal.at(-2)    ?? EMPTY_DRE;
+
   const dreBase    = filtroUnidade === '1' ? dreAtualU1 : filtroUnidade === '2' ? dreAtualU2 : dreAtual;
-  const dreBaseAnt = filtroUnidade === '1' ? dreMensal.at(-2)! : filtroUnidade === '2' ? dreMensal.at(-2)! : dreMesAnterior;
+  const dreBaseAnt = filtroUnidade === '1' ? (dreMensalU1.at(-2) ?? EMPTY_DRE) : filtroUnidade === '2' ? (dreMensalU2.at(-2) ?? EMPTY_DRE) : dreMesAnterior;
 
   const varFaturamento = calcVariation(dreBase.faturamentoTotal, dreBaseAnt.faturamentoTotal);
   const varDespesas    = calcVariation(dreBase.despesasTotal, dreBaseAnt.despesasTotal);
@@ -38,16 +92,8 @@ export default function DashboardPage() {
   const destaques = insights.slice(0, 3);
 
   const unidadesComparativo = [
-    {
-      unidade: unidadesPadaria[0],
-      dre: dreAtualU1,
-      cor: '#D97706',
-    },
-    {
-      unidade: unidadesPadaria[1],
-      dre: dreAtualU2,
-      cor: '#3B82F6',
-    },
+    { unidade: UNIDADES_PADARIA[0], dre: dreAtualU1, cor: '#D97706' },
+    { unidade: UNIDADES_PADARIA[1], dre: dreAtualU2, cor: '#3B82F6' },
   ];
 
   return (
