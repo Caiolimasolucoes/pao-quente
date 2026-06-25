@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import Modal from '@/components/ui/Modal';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Plus, Search, Building2, X, Package, Truck, ChevronRight, Link2, FileText } from 'lucide-react';
+import { Plus, Search, Building2, X, Package, Truck, ChevronRight, Link2, FileText, Pencil } from 'lucide-react';
 import { useUnit } from '@/contexts/UnitContext';
 import { createClient } from '@/lib/supabase/client';
 
@@ -229,7 +229,10 @@ export default function ComprasPage() {
   const [valorTotal, setValorTotal]       = useState('');
   const [gerarBoleto, setGerarBoleto]     = useState(false);
   const [vencimentoBoleto, setVencimentoBoleto] = useState('');
-  const { filtroUnidade }                 = useUnit();
+  const [editandoCompra, setEditandoCompra] = useState<any>(null);
+  const [salvandoEdit, setSalvandoEdit]     = useState(false);
+  const [erroEdit, setErroEdit]             = useState('');
+  const { filtroUnidade }                   = useUnit();
 
   async function carregarDados() {
     const supabase = createClient();
@@ -311,6 +314,44 @@ export default function ComprasPage() {
     setModalOpen(false);
   }
 
+  function handleOpenEditCompra(compra: any) {
+    setEditandoCompra(compra);
+    setFormUnidade(compra.unidade_id || '1');
+    setFormData(compra.data || new Date().toISOString().split('T')[0]);
+    setFormCategoria(compra.categoria || 'Mercearia');
+    setFormProd(compra.produto || '');
+    setFormForn(compra.fornecedor || '');
+    setFormUnMedida(compra.unidade || 'KG');
+    setFormQtd(compra.quantidade != null ? String(compra.quantidade) : '');
+    setFormVlrUnit(compra.valor_unitario != null ? String(compra.valor_unitario) : '');
+    setValorTotal(compra.valor_total != null ? String(compra.valor_total) : '');
+    setErroEdit('');
+  }
+
+  async function handleSalvarEditCompra() {
+    if (!editandoCompra) return;
+    if (!formProd.trim()) { setErroEdit('Informe o produto.'); return; }
+    if (!valorTotal || parseFloat(valorTotal) <= 0) { setErroEdit('Informe o valor total.'); return; }
+    setSalvandoEdit(true);
+    setErroEdit('');
+    const supabase = createClient();
+    const { error } = await supabase.from('compras').update({
+      unidade_id: formUnidade,
+      data: formData,
+      produto: formProd.trim(),
+      fornecedor: formForn.trim() || '-',
+      categoria: formCategoria,
+      quantidade: parseFloat(formQtd) || null,
+      unidade: formUnMedida,
+      valor_unitario: parseFloat(formVlrUnit) || null,
+      valor_total: parseFloat(valorTotal),
+    }).eq('id', editandoCompra.id);
+    if (error) { setErroEdit('Erro ao salvar: ' + error.message); setSalvandoEdit(false); return; }
+    await carregarDados();
+    setSalvandoEdit(false);
+    setEditandoCompra(null);
+  }
+
   return (
     <>
       <Header title="Gestão de Compras" />
@@ -360,7 +401,7 @@ export default function ComprasPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    {['Data','Produto','Fornecedor','Categoria','Unidade','Qtd / Un','Valor Unit.','Total'].map(h => (
+                    {['Data','Produto','Fornecedor','Categoria','Unidade','Qtd / Un','Valor Unit.','Total',''].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -382,16 +423,23 @@ export default function ComprasPage() {
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.quantidade} {c.unidade}</td>
                       <td className="px-4 py-3 text-gray-600 text-right tabular-nums">{c.valor_unitario ? formatCurrency(c.valor_unitario) : '—'}</td>
                       <td className="px-4 py-3 font-semibold text-gray-900 text-right tabular-nums">{formatCurrency(c.valor_total)}</td>
+                      <td className="px-3 py-3">
+                        <button onClick={() => handleOpenEditCompra(c)}
+                          className="p-1.5 text-gray-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Editar">
+                          <Pencil size={13} />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {lista.length === 0 && (
-                    <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">Nenhuma compra encontrada.</td></tr>
+                    <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400 text-sm">Nenhuma compra encontrada.</td></tr>
                   )}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-200 bg-amber-50">
                     <td colSpan={7} className="px-4 py-3 text-sm font-semibold text-gray-900">Total filtrado</td>
                     <td className="px-4 py-3 text-sm font-bold text-amber-800 text-right tabular-nums">{formatCurrency(totalMes)}</td>
+                    <td />
                   </tr>
                 </tfoot>
               </table>
@@ -521,6 +569,91 @@ export default function ComprasPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal de edição de compra */}
+      <Modal open={editandoCompra !== null} onClose={() => setEditandoCompra(null)} title="Editar Compra" size="lg">
+        {editandoCompra && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Unidade</label>
+              <div className="grid grid-cols-2 gap-3">
+                {[{ id: '1', nome: 'Unidade Centro' }, { id: '2', nome: 'Unidade Bairro' }].map(u => (
+                  <button key={u.id} onClick={() => setFormUnidade(u.id)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${formUnidade === u.id ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-700 hover:border-amber-300'}`}>
+                    <Building2 size={14} /> {u.nome}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Data</label>
+                <input type="date" value={formData} onChange={e => setFormData(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Categoria</label>
+                <select value={formCategoria} onChange={e => setFormCategoria(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+                  {CATEGORIAS_COMPRA.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Produto *</label>
+                <input autoFocus type="text" value={formProd} onChange={e => setFormProd(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Fornecedor</label>
+                <input type="text" value={formForn} onChange={e => setFormForn(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Quantidade</label>
+                <input type="number" placeholder="0" min={0} step="0.01" value={formQtd}
+                  onChange={e => setFormQtd(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Un. Medida</label>
+                <select value={formUnMedida} onChange={e => setFormUnMedida(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+                  {UNIDADES_MEDIDA.map(u => <option key={u}>{u}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Valor Unit. (R$)</label>
+                <input type="number" placeholder="0,00" min={0} step="0.01" value={formVlrUnit}
+                  onChange={e => setFormVlrUnit(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Total (R$) *</label>
+                <input type="number" placeholder="0,00" value={valorTotal}
+                  onChange={e => setValorTotal(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+            </div>
+
+            {erroEdit && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{erroEdit}</p>}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setEditandoCompra(null)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
+              <button onClick={handleSalvarEditCompra} disabled={salvandoEdit}
+                className="px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-60" style={{ backgroundColor: '#D97706' }}>
+                {salvandoEdit ? 'Salvando…' : 'Salvar Alterações'}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </>
   );

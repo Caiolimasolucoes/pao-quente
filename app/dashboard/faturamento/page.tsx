@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import { formatCurrency } from '@/lib/utils';
-import { Lock, TrendingUp, Building2, CreditCard, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Lock, TrendingUp, Building2, CreditCard, CheckCircle2, AlertCircle, Pencil } from 'lucide-react';
+import Modal from '@/components/ui/Modal';
 import { useUnit } from '@/contexts/UnitContext';
 import { useFormasPagamento } from '@/contexts/FormasPagamentoContext';
 import { createClient } from '@/lib/supabase/client';
@@ -78,6 +79,10 @@ export default function FaturamentoPage() {
 
   const [faturamentoData, setFaturamentoData] = useState<any[]>([]);
   const [carregando, setCarregando]           = useState(true);
+  const [editandoFat, setEditandoFat]         = useState<any>(null);
+  const [editFatValor, setEditFatValor]       = useState('');
+  const [editFatMeios, setEditFatMeios]       = useState<Record<string, string>>({});
+  const [salvandoEditFat, setSalvandoEditFat] = useState(false);
 
   const hoje = new Date().toISOString().split('T')[0];
 
@@ -196,6 +201,73 @@ export default function FaturamentoPage() {
     setValoresForma({});
     setDataLancamento(hoje);
     setTimeout(() => setSucesso(''), 4000);
+  }
+
+  function handleOpenEditFat(record: any) {
+    setEditandoFat(record);
+    setEditFatValor(String(record.valor || ''));
+    const meiosExist = (record.meios || {}) as Record<string, number>;
+    const meiosStr: Record<string, string> = {};
+    for (const [k, v] of Object.entries(meiosExist)) meiosStr[k] = String(v);
+    setEditFatMeios(meiosStr);
+  }
+
+  async function handleSalvarEditFat() {
+    if (!editandoFat) return;
+    const totalEdit = parseFloat(editFatValor) || 0;
+    if (totalEdit <= 0) return;
+    setSalvandoEditFat(true);
+    const supabase = createClient();
+
+    const meiosPayload: Record<string, number> = {};
+    for (const f of formasAtivas) {
+      const val = parseFloat(editFatMeios[f.id] || '0') || 0;
+      if (val > 0) meiosPayload[f.id] = val;
+    }
+
+    const dataSalvar = editandoFat.data;
+    const unidSalvar = editandoFat.unidade_id;
+
+    await supabase.from('faturamento_diario').upsert({
+      id: `fat-${unidSalvar}-${dataSalvar}`,
+      unidade_id: unidSalvar,
+      data: dataSalvar,
+      valor: totalEdit,
+      meios: meiosPayload,
+    }, { onConflict: 'unidade_id,data' });
+
+    if (Object.keys(meiosPayload).length > 0) {
+      const dataObj = new Date(dataSalvar + 'T12:00:00');
+      const ano = dataObj.getFullYear();
+      const mes = dataObj.getMonth();
+      const mesStr = String(mes + 1).padStart(2, '0');
+      const mesProxStr = String(mes + 2).padStart(2, '0');
+      const { data: diasMes } = await supabase
+        .from('faturamento_diario')
+        .select('meios')
+        .eq('unidade_id', unidSalvar)
+        .gte('data', `${ano}-${mesStr}-01`)
+        .lt('data', mes < 11 ? `${ano}-${mesProxStr}-01` : `${ano + 1}-01-01`);
+      const totaisMes: Record<string, number> = {};
+      for (const row of diasMes || []) {
+        const m = (row.meios || {}) as Record<string, number>;
+        for (const [formaId, val] of Object.entries(m)) {
+          totaisMes[formaId] = (totaisMes[formaId] || 0) + Number(val);
+        }
+      }
+      for (const f of formasAtivas) {
+        const totalMensal = totaisMes[f.id] || 0;
+        if (totalMensal > 0) {
+          await supabase.from('meios_pagamento').upsert({
+            unidade_id: unidSalvar, ano, mes, forma: f.nome, valor: totalMensal, cor: f.cor,
+          }, { onConflict: 'unidade_id,ano,mes,forma' });
+        }
+      }
+    }
+
+    await carregarFaturamento();
+    setSalvandoEditFat(false);
+    setEditandoFat(null);
   }
 
   const mesNome = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -431,6 +503,7 @@ export default function FaturamentoPage() {
                                     </span>
                                   </th>
                                 ))}
+                                <th className="px-3 py-3"></th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
@@ -465,6 +538,17 @@ export default function FaturamentoPage() {
                                         </td>
                                       );
                                     })}
+                                    <td className="px-3 py-2.5">
+                                      {(() => {
+                                        const record = faturamentoData.find(d => d.data === data && d.unidade_id === u.id);
+                                        return record ? (
+                                          <button onClick={() => handleOpenEditFat(record)}
+                                            className="p-1.5 text-gray-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Editar">
+                                            <Pencil size={13} />
+                                          </button>
+                                        ) : null;
+                                      })()}
+                                    </td>
                                   </tr>
                                 );
                               })}
@@ -490,6 +574,7 @@ export default function FaturamentoPage() {
                                     </td>
                                   );
                                 })}
+                                <td />
                               </tr>
                             </tfoot>
                           </table>
@@ -526,6 +611,68 @@ export default function FaturamentoPage() {
           </div>
         )}
       </main>
+
+      {/* Modal de edição de lançamento do histórico */}
+      <Modal open={editandoFat !== null} onClose={() => setEditandoFat(null)}
+        title={editandoFat ? `Editar — ${formatDia(editandoFat.data)} (${editandoFat.unidade_id === '1' ? 'Centro' : 'Bairro'})` : ''}
+        size="md">
+        {editandoFat && (() => {
+          const totalEdit = parseFloat(editFatValor) || 0;
+          const somaEdit = formasAtivas.reduce((s, f) => s + (parseFloat(editFatMeios[f.id] || '0') || 0), 0);
+          const difEdit = totalEdit - somaEdit;
+          const bateEdit = totalEdit > 0 && Math.abs(difEdit) < 0.01;
+          return (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Faturamento Total do Dia (R$)</label>
+                <input autoFocus type="number" min={0} step="0.01" value={editFatValor}
+                  onChange={e => setEditFatValor(e.target.value)}
+                  className="w-full px-4 py-3 text-xl font-bold border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 tabular-nums" />
+              </div>
+
+              {totalEdit > 0 && (
+                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                    <CreditCard size={14} className="text-gray-400" />
+                    <span className="text-xs font-semibold text-gray-700">Distribuição por Forma de Pagamento</span>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {formasAtivas.map(f => (
+                      <div key={f.id} className="flex items-center gap-3">
+                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: f.cor }} />
+                        <label className="text-xs font-medium text-gray-700 w-28 flex-shrink-0">{f.nome}</label>
+                        <div className="flex-1 relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-medium">R$</span>
+                          <input type="number" min={0} step="0.01" value={editFatMeios[f.id] ?? ''}
+                            onChange={e => setEditFatMeios(prev => ({ ...prev, [f.id]: e.target.value }))}
+                            placeholder="0,00"
+                            className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 tabular-nums" />
+                        </div>
+                      </div>
+                    ))}
+                    <div className={`flex items-center justify-between mt-2 pt-3 border-t rounded-lg px-3 py-2 ${bateEdit ? 'bg-emerald-50 border-emerald-200' : somaEdit > totalEdit ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+                      <span className={`text-xs font-medium ${bateEdit ? 'text-emerald-700' : somaEdit > totalEdit ? 'text-red-700' : 'text-amber-700'}`}>
+                        {bateEdit ? 'Total fechado!' : somaEdit > totalEdit ? `Excede em R$ ${(somaEdit - totalEdit).toFixed(2).replace('.', ',')}` : `Falta distribuir R$ ${difEdit.toFixed(2).replace('.', ',')}`}
+                      </span>
+                      <span className="text-xs tabular-nums text-gray-500">
+                        {somaEdit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} / {totalEdit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-1">
+                <button onClick={() => setEditandoFat(null)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
+                <button onClick={handleSalvarEditFat} disabled={salvandoEditFat || totalEdit <= 0 || (somaEdit > 0 && !bateEdit)}
+                  className="px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-60" style={{ backgroundColor: '#D97706' }}>
+                  {salvandoEditFat ? 'Salvando…' : 'Salvar Alterações'}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
     </>
   );
 }
