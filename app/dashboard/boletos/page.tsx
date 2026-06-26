@@ -7,21 +7,33 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Plus, AlertCircle, Link2, Building2, Search, X, Truck, CheckCircle2, Pencil } from 'lucide-react';
 import { useUnit } from '@/contexts/UnitContext';
+import { useDateRange } from '@/contexts/DateRangeContext';
 import { createClient } from '@/lib/supabase/client';
 
-const CATEGORIAS_BOLETO = [
-  { nome: 'Insumos', subs: ['Mercearia','Laticínios','Carnes','Bebidas','Confeitaria','Embalagens'] },
-  { nome: 'Pessoal', subs: ['Folha de Pagamento','Pró Labore','Retira Sócio'] },
-  { nome: 'Encargos', subs: ['Simples Nacional','FGTS','INSS'] },
+const CATEGORIAS_BOLETO_FALLBACK = [
+  { nome: 'Insumos',        subs: ['Mercearia','Laticínios','Carnes','Bebidas','Confeitaria','Embalagens'] },
+  { nome: 'Pessoal',        subs: ['Folha de Pagamento','Pró Labore','Retira Sócio'] },
+  { nome: 'Encargos',       subs: ['Simples Nacional','FGTS','INSS'] },
   { nome: 'Infraestrutura', subs: ['Aluguel','Energia','Água','Internet','Manutenção'] },
-  { nome: 'Outros', subs: ['Despesas ADM','Investimento','Outros'] },
+  { nome: 'Outros',         subs: ['Despesas ADM','Investimento','Outros'] },
 ];
 
-const unidadeLabel: Record<string, string> = { '1': 'Centro', '2': 'Bairro' };
-const unidadeCor: Record<string, string> = {
-  '1': 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/20',
-  '2': 'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20',
-};
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+const CORES_BG_BADGE = [
+  'bg-amber-50 text-amber-700 ring-1 ring-amber-600/20',
+  'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20',
+  'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20',
+  'bg-purple-50 text-purple-700 ring-1 ring-purple-600/20',
+  'bg-red-50 text-red-700 ring-1 ring-red-600/20',
+];
+
+const HOJE = new Date().toISOString().split('T')[0];
+
+function calcStatus(b: any): 'pago' | 'pendente' | 'vencido' {
+  if (b.status === 'pago') return 'pago';
+  return b.vencimento && b.vencimento < HOJE ? 'vencido' : 'pendente';
+}
 
 function FornecedorAutocomplete({
   value, onChange, fornecedoresDB, fornExtras, onAddFornecedor,
@@ -155,11 +167,41 @@ function FornecedorAutocomplete({
 export default function BoletosPage() {
   const [listaBoletos, setListaBoletos]   = useState<any[]>([]);
   const [fornecedoresDB, setFornecedoresDB] = useState<any[]>([]);
+  const [categoriasBoletoDB, setCategoriasBoletoDB] = useState<{ nome: string; categoria_pai: string }[]>([]);
   const [carregando, setCarregando]       = useState(true);
   const [salvando, setSalvando]           = useState(false);
   const [erro, setErro]                   = useState('');
   const [filtroStatus, setFiltroStatus]   = useState<'todos' | 'pendente' | 'vencido' | 'pago'>('todos');
   const { filtroUnidade, unidades }        = useUnit();
+  const { mesInicio, mesFim, ano }         = useDateRange();
+
+  const periodoLabel = mesInicio === mesFim
+    ? `${MESES[mesInicio]} ${ano}`
+    : `${MESES[mesInicio]}–${MESES[mesFim]} ${ano}`;
+
+  const inRange = (dataStr: string) => {
+    if (!dataStr) return false;
+    const [y, m] = dataStr.split('-').map(Number);
+    return y === ano && (m - 1) >= mesInicio && (m - 1) <= mesFim;
+  };
+
+  const categoriasBoletoDyn = useMemo(() => {
+    if (categoriasBoletoDB.length === 0) return CATEGORIAS_BOLETO_FALLBACK;
+    const groups: Record<string, string[]> = {};
+    for (const c of categoriasBoletoDB) {
+      const pai = (c.categoria_pai || 'Outros').trim();
+      if (!groups[pai]) groups[pai] = [];
+      groups[pai].push(c.nome);
+    }
+    return Object.entries(groups).map(([nome, subs]) => ({ nome, subs }));
+  }, [categoriasBoletoDB]);
+
+  function getUnitBadge(unidade_id: string) {
+    const idx = unidades.findIndex(u => u.id === unidade_id);
+    const nome = unidades[idx]?.nome ?? unidade_id;
+    const cor  = CORES_BG_BADGE[idx >= 0 ? idx % CORES_BG_BADGE.length : 0];
+    return { nome, cor };
+  }
   const [modalOpen, setModalOpen]         = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingBoleto, setEditingBoleto] = useState<any>(null);
@@ -181,33 +223,38 @@ export default function BoletosPage() {
 
   async function carregarDados() {
     const supabase = createClient();
-    const [{ data: boletosData }, { data: fornData }] = await Promise.all([
+    const [{ data: boletosData }, { data: fornData }, { data: catBol }] = await Promise.all([
       supabase.from('boletos').select('*').order('vencimento', { ascending: true }),
       supabase.from('fornecedores').select('*').order('nome'),
+      supabase.from('categorias_boleto').select('nome, categoria_pai').order('categoria_pai').order('nome'),
     ]);
     setListaBoletos(boletosData || []);
     setFornecedoresDB(fornData || []);
+    setCategoriasBoletoDB((catBol || []) as { nome: string; categoria_pai: string }[]);
     setCarregando(false);
   }
 
   useEffect(() => { carregarDados(); }, []);
 
   const lista = listaBoletos.filter(b => {
-    const matchStatus  = filtroStatus === 'todos' || b.status === filtroStatus;
+    const statusComp   = calcStatus(b);
+    const matchStatus  = filtroStatus === 'todos' || statusComp === filtroStatus;
     const matchUnidade = filtroUnidade === 'todas' || b.unidade_id === filtroUnidade;
-    return matchStatus && matchUnidade;
+    const matchData    = inRange(b.vencimento);
+    return matchStatus && matchUnidade && matchData;
   });
 
-  const vencidos      = listaBoletos.filter(b => b.status === 'vencido');
-  const aVencer       = listaBoletos.filter(b => b.status === 'pendente');
-  const totalPendente = listaBoletos.filter(b => b.status !== 'pago').reduce((a, b) => a + Number(b.valor), 0);
-  const totalJuros    = listaBoletos
-    .filter(b => b.status === 'pago' && b.valor_pago != null)
+  const boletosUni = filtroUnidade === 'todas' ? listaBoletos : listaBoletos.filter(b => b.unidade_id === filtroUnidade);
+  const vencidos      = boletosUni.filter(b => calcStatus(b) === 'vencido');
+  const aVencer       = boletosUni.filter(b => calcStatus(b) === 'pendente');
+  const totalPendente = boletosUni.filter(b => calcStatus(b) !== 'pago').reduce((a, b) => a + Number(b.valor), 0);
+  const totalJuros    = boletosUni
+    .filter(b => calcStatus(b) === 'pago' && b.valor_pago != null)
     .reduce((a, b) => a + (Number(b.valor_pago) - Number(b.valor)), 0);
 
   function handleSubCat(sub: string) {
     setFormSubCat(sub);
-    const cat = CATEGORIAS_BOLETO.find(c => c.subs.includes(sub));
+    const cat = categoriasBoletoDyn.find(c => c.subs.includes(sub));
     setFormCat(cat?.nome ?? '');
   }
 
@@ -290,7 +337,9 @@ export default function BoletosPage() {
       vencimento: formVenc,
       status: formStatus,
       vinculado_compra: formVinculado,
-      valor_pago: formValorPago ? parseFloat(formValorPago) : null,
+      valor_pago: formStatus === 'pago'
+        ? (formValorPago ? parseFloat(formValorPago) : parseFloat(formValor))
+        : null,
     }).eq('id', editingBoleto.id);
     if (error) { setErroEdit('Erro ao salvar: ' + error.message); setSalvandoEdit(false); return; }
     await carregarDados();
@@ -319,13 +368,16 @@ export default function BoletosPage() {
               <p className="text-sm font-semibold text-red-700">{vencidos.length} boleto{vencidos.length > 1 ? 's' : ''} vencido{vencidos.length > 1 ? 's' : ''} — regularize para evitar multas</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {vencidos.map(v => (
-                <div key={v.id} className="flex items-center gap-1.5 bg-white border border-red-200 rounded-lg px-3 py-1.5">
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${unidadeCor[v.unidade_id] || ''}`}>{unidadeLabel[v.unidade_id] || v.unidade_id}</span>
-                  <span className="text-xs text-gray-700 font-medium">{v.fornecedor}</span>
-                  <span className="text-xs text-red-600 font-semibold">{formatCurrency(Number(v.valor))}</span>
-                </div>
-              ))}
+              {vencidos.map(v => {
+                const ub = getUnitBadge(v.unidade_id);
+                return (
+                  <div key={v.id} className="flex items-center gap-1.5 bg-white border border-red-200 rounded-lg px-3 py-1.5">
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${ub.cor}`}>{ub.nome}</span>
+                    <span className="text-xs text-gray-700 font-medium">{v.fornecedor}</span>
+                    <span className="text-xs text-red-600 font-semibold">{formatCurrency(Number(v.valor))}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -337,16 +389,19 @@ export default function BoletosPage() {
               <p className="text-sm font-semibold text-amber-800">{aVencer.length} boleto{aVencer.length > 1 ? 's' : ''} pendente{aVencer.length > 1 ? 's' : ''} · {formatCurrency(aVencer.reduce((a, b) => a + Number(b.valor), 0))} no total</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
-              {aVencer.map(b => (
+              {aVencer.map(b => {
+                const ub = getUnitBadge(b.unidade_id);
+                return (
                 <div key={b.id} className="bg-white border border-amber-100 rounded-lg px-3 py-2.5 flex items-center gap-3">
-                  <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-lg ${unidadeCor[b.unidade_id] || ''}`}>{unidadeLabel[b.unidade_id] || b.unidade_id}</span>
+                  <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-lg ${ub.cor}`}>{ub.nome}</span>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold text-gray-900 truncate">{b.fornecedor}</p>
                     <p className="text-xs text-gray-400">{b.sub_categoria} · vence {formatDate(b.vencimento)}</p>
                   </div>
                   <span className="text-sm font-bold text-gray-800 flex-shrink-0 tabular-nums">{formatCurrency(Number(b.valor))}</span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -389,7 +444,7 @@ export default function BoletosPage() {
                 <>
                   <div className="w-px h-4 bg-gray-200" />
                   <span className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
-                    <Building2 size={11} /> {filtroUnidade === '1' ? 'Centro' : 'Bairro'}
+                    <Building2 size={11} /> {unidades.find(u => u.id === filtroUnidade)?.nome ?? filtroUnidade}
                   </span>
                 </>
               )}
@@ -413,21 +468,24 @@ export default function BoletosPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {lista.map(b => (
-                    <tr key={b.id} className={`hover:bg-gray-50 ${b.status === 'vencido' ? 'bg-red-50/40' : ''}`}>
+                  {lista.map(b => {
+                    const ub = getUnitBadge(b.unidade_id);
+                    const statusComp = calcStatus(b);
+                    return (
+                    <tr key={b.id} className={`hover:bg-gray-50 ${statusComp === 'vencido' ? 'bg-red-50/40' : ''}`}>
                       <td className="px-4 py-3 font-medium text-gray-900">
                         <div className="flex items-center gap-2">
                           {b.fornecedor}
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${b.unidade_id === '1' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {unidadeLabel[b.unidade_id] || b.unidade_id}
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${ub.cor}`}>
+                            {ub.nome}
                           </span>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-gray-600">{b.categoria}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{b.sub_categoria}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${unidadeCor[b.unidade_id] || ''}`}>
-                          {unidadeLabel[b.unidade_id] || b.unidade_id}
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${ub.cor}`}>
+                          {ub.nome}
                         </span>
                       </td>
                       <td className="px-4 py-3 font-semibold text-gray-900 tabular-nums">{formatCurrency(Number(b.valor))}</td>
@@ -457,7 +515,7 @@ export default function BoletosPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3"><StatusBadge status={b.status} /></td>
+                      <td className="px-4 py-3"><StatusBadge status={statusComp} /></td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <button onClick={() => handleOpenEditar(b)}
@@ -465,7 +523,7 @@ export default function BoletosPage() {
                             className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
                             <Pencil size={13} />
                           </button>
-                          {b.status !== 'pago' && (
+                          {statusComp !== 'pago' && (
                             <button onClick={() => handleMarcarPago(b)}
                               title="Marcar como pago"
                               className="flex items-center gap-1 text-xs text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 px-2.5 py-1 rounded-lg transition-colors">
@@ -475,7 +533,8 @@ export default function BoletosPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {lista.length === 0 && (
                     <tr><td colSpan={11} className="px-4 py-10 text-center text-gray-400 text-sm">Nenhum boleto encontrado.</td></tr>
                   )}
@@ -520,7 +579,7 @@ export default function BoletosPage() {
             <select value={formSubCat} onChange={e => handleSubCat(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
               <option value="">Selecione a subcategoria…</option>
-              {CATEGORIAS_BOLETO.map(cat => (
+              {categoriasBoletoDyn.map(cat => (
                 <optgroup key={cat.nome} label={cat.nome}>
                   {cat.subs.map(sub => <option key={sub} value={sub}>{sub}</option>)}
                 </optgroup>
@@ -626,7 +685,7 @@ export default function BoletosPage() {
             <select value={formSubCat} onChange={e => handleSubCat(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
               <option value="">Selecione a subcategoria…</option>
-              {CATEGORIAS_BOLETO.map(cat => (
+              {categoriasBoletoDyn.map(cat => (
                 <optgroup key={cat.nome} label={cat.nome}>
                   {cat.subs.map(sub => <option key={sub} value={sub}>{sub}</option>)}
                 </optgroup>
