@@ -83,6 +83,7 @@ export default function CadastrosPage() {
   const [salvandoModal, setSalvandoModal] = useState(false);
   const [erroModal, setErroModal]       = useState('');
   const [confirmDel, setConfirmDel]     = useState<{ tipo: string; id: string; nome: string } | null>(null);
+  const [erroDeletar, setErroDeletar]   = useState('');
 
   // Shared form fields
   const [fNome, setFNome]           = useState('');
@@ -214,6 +215,7 @@ export default function CadastrosPage() {
 
   async function handleDeletar() {
     if (!confirmDel) return;
+    setErroDeletar('');
     const supabase = createClient();
     const tableMap: Record<string, string> = {
       produto: 'produtos', fornecedor: 'fornecedores',
@@ -221,7 +223,10 @@ export default function CadastrosPage() {
       'unid-medida': 'unidades_medida',
     };
     const table = tableMap[confirmDel.tipo];
-    if (table) await supabase.from(table).delete().eq('id', confirmDel.id);
+    if (table) {
+      const { error } = await supabase.from(table).delete().eq('id', confirmDel.id);
+      if (error) { setErroDeletar(error.message); return; }
+    }
     await recarregar();
     setConfirmDel(null);
   }
@@ -845,7 +850,7 @@ export default function CadastrosPage() {
       </Modal>
 
       {/* ── Modal de Confirmação de Exclusão ────────────────────────── */}
-      <Modal open={confirmDel !== null} onClose={() => setConfirmDel(null)} title="Confirmar Exclusão" size="sm">
+      <Modal open={confirmDel !== null} onClose={() => { setConfirmDel(null); setErroDeletar(''); }} title="Confirmar Exclusão" size="sm">
         <div className="space-y-4">
           <div className="flex items-start gap-3 bg-red-50 border border-red-100 rounded-lg p-3">
             <AlertCircle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
@@ -853,8 +858,14 @@ export default function CadastrosPage() {
               Deseja excluir <strong>{confirmDel?.nome}</strong>? Esta ação não pode ser desfeita.
             </p>
           </div>
+          {erroDeletar && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
+              <AlertCircle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-700 font-medium">Erro ao excluir: {erroDeletar}</p>
+            </div>
+          )}
           <div className="flex justify-end gap-3 pt-1">
-            <button onClick={() => setConfirmDel(null)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
+            <button onClick={() => { setConfirmDel(null); setErroDeletar(''); }} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
             <button onClick={handleDeletar} className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors">Excluir</button>
           </div>
         </div>

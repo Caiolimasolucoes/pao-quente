@@ -136,7 +136,6 @@ export default function IndicadoresPage() {
   const [alertaAberto, setAlertaAberto]  = useState<string | null>(null);
 
   // ── Carrega dados reais do Supabase ────────────────────────────
-  const [dreDB, setDreDB]             = useState<any[]>([]);
   const [fatDiarioDB, setFatDiarioDB] = useState<any[]>([]);
   const [boletosDB, setBoletosDB]     = useState<any[]>([]);
   const [comprasDB, setComprasDB]     = useState<any[]>([]);
@@ -144,17 +143,90 @@ export default function IndicadoresPage() {
   useEffect(() => {
     const supabase = createClient();
     Promise.all([
-      supabase.from('dre_mensal').select('*').order('ano').order('mes'),
       supabase.from('faturamento_diario').select('*').order('data'),
       supabase.from('boletos').select('categoria,sub_categoria,valor,unidade_id,vencimento,status'),
       supabase.from('compras').select('categoria,valor_total,unidade_id,data'),
-    ]).then(([{ data: dre }, { data: fat }, { data: bol }, { data: cpr }]) => {
-      setDreDB(dre || []);
+    ]).then(([{ data: fat }, { data: bol }, { data: cpr }]) => {
       setFatDiarioDB(fat || []);
       setBoletosDB(bol || []);
       setComprasDB(cpr || []);
     });
   }, []);
+
+  // Computa DRE mensal dinamicamente — mapeia categoria/subcategoria dos boletos
+  // para os campos de despesa do DRE, evitando dependência da tabela dre_mensal.
+  const dreDB = useMemo(() => {
+    const CAT_KEY: Record<string, string> = {
+      'compra de insumos':  'compra_insumos',
+      'folha de pagamento': 'folha_pagamento',
+      'impostos':           'impostos',
+      'despesas adm':       'despesas_adm',
+      'manutenção':         'manutencao',
+      'investimento':       'investimento',
+      'pró labore':         'pro_labore',
+      'pro labore':         'pro_labore',
+      'retira sócio':       'retira_socio',
+      'retira socio':       'retira_socio',
+      'insumos':            'compra_insumos',
+      'encargos':           'impostos',
+    };
+    const SUBCAT_KEY: Record<string, string> = {
+      'folha de pagamento': 'folha_pagamento',
+      'pró labore':         'pro_labore',
+      'pro labore':         'pro_labore',
+      'retira sócio':       'retira_socio',
+      'retira socio':       'retira_socio',
+      'simples nacional':   'impostos',
+      'fgts':               'impostos',
+      'inss':               'impostos',
+      'manutenção':         'manutencao',
+      'investimento':       'investimento',
+      'despesas adm':       'despesas_adm',
+    };
+    type DBRow = {
+      unidade_id: string; ano: number; mes: number;
+      faturamento_total: number; faturamento_real: number;
+      compra_insumos: number; folha_pagamento: number; impostos: number;
+      despesas_adm: number; manutencao: number; investimento: number;
+      pro_labore: number; retira_socio: number; despesas_total: number; lucro: number;
+    };
+    const blank = (uid: string, ano: number, mes: number): DBRow => ({
+      unidade_id: uid, ano, mes,
+      faturamento_total: 0, faturamento_real: 0,
+      compra_insumos: 0, folha_pagamento: 0, impostos: 0,
+      despesas_adm: 0, manutencao: 0, investimento: 0,
+      pro_labore: 0, retira_socio: 0, despesas_total: 0, lucro: 0,
+    });
+    const map: Record<string, DBRow> = {};
+    const row = (uid: string, ano: number, mes: number) => {
+      const k = `${uid}-${ano}-${mes}`;
+      if (!map[k]) map[k] = blank(uid, ano, mes);
+      return map[k];
+    };
+    for (const d of fatDiarioDB) {
+      const dt = new Date(d.data + 'T12:00:00');
+      const r = row(d.unidade_id, dt.getFullYear(), dt.getMonth());
+      const v = Number(d.valor) || 0;
+      r.faturamento_total += v;
+      r.faturamento_real  += v;
+    }
+    for (const b of boletosDB) {
+      if (!b.vencimento) continue;
+      const dt = new Date((b.vencimento as string) + 'T12:00:00');
+      const r = row(b.unidade_id, dt.getFullYear(), dt.getMonth());
+      const v = Number(b.valor) || 0;
+      const subkey = (b.sub_categoria as string)?.toLowerCase().trim();
+      const catkey = (b.categoria as string)?.toLowerCase().trim();
+      const field = (subkey && SUBCAT_KEY[subkey]) || CAT_KEY[catkey];
+      if (field) (r as any)[field] += v;
+    }
+    for (const r of Object.values(map)) {
+      r.despesas_total = r.compra_insumos + r.folha_pagamento + r.impostos +
+        r.despesas_adm + r.manutencao + r.investimento + r.pro_labore + r.retira_socio;
+      r.lucro = r.faturamento_total - r.despesas_total;
+    }
+    return Object.values(map).sort((a, b) => a.ano !== b.ano ? a.ano - b.ano : a.mes - b.mes);
+  }, [fatDiarioDB, boletosDB]);
 
   // Deriva arrays no mesmo formato que antes (camelCase)
   const dreU1Rows = dreDB.filter(r => r.unidade_id === '1');

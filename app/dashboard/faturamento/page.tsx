@@ -11,10 +11,6 @@ import { createClient } from '@/lib/supabase/client';
 
 type Aba = 'lancamento' | 'historico' | 'sazonalidade';
 
-const UNIDADES = [
-  { id: '1', nome: 'Unidade Centro' },
-  { id: '2', nome: 'Unidade Bairro' },
-];
 
 const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -66,7 +62,7 @@ function MediaDiaSemana({ dados }: { dados: { data: string; valor: number }[] })
 
 export default function FaturamentoPage() {
   const [aba, setAba]                   = useState<Aba>('lancamento');
-  const { filtroUnidade }               = useUnit();
+  const { filtroUnidade, unidades }      = useUnit();
   const [valorLancamento, setValorLancamento] = useState('');
   const [unidadeLancamento, setUnidadeLancamento] = useState('1');
   const [dataLancamento, setDataLancamento]   = useState('');
@@ -357,7 +353,7 @@ export default function FaturamentoPage() {
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">Unidade</label>
                   <div className="grid grid-cols-2 gap-3">
-                    {UNIDADES.map(u => (
+                    {unidades.map(u => (
                       <button key={u.id} onClick={() => setUnidadeLancamento(u.id)}
                         className={`flex items-center gap-2 px-4 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${unidadeLancamento === u.id ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-700 hover:border-gray-300'}`}>
                         <Building2 size={15} />{u.nome}
@@ -435,7 +431,7 @@ export default function FaturamentoPage() {
                 <p className="text-sm text-gray-400">Carregando…</p>
               ) : (
                 <div className="space-y-4">
-                  {UNIDADES.map(u => {
+                  {unidades.map(u => {
                     const lancado = faturamentoData.find(d => d.data === hoje && d.unidade_id === u.id);
                     return (
                       <div key={u.id} className="p-4 rounded-lg bg-gray-50 border border-gray-100">
@@ -471,7 +467,7 @@ export default function FaturamentoPage() {
             {carregando ? (
               <div className="bg-white rounded-xl border border-gray-200 py-16 text-center text-gray-400 text-sm">Carregando…</div>
             ) : (
-              UNIDADES
+              unidades
                 .filter(u => filtroUnidade === 'todas' || filtroUnidade === u.id)
                 .map(u => {
                   const diasU = Array.from(new Set(
@@ -589,7 +585,7 @@ export default function FaturamentoPage() {
 
         {aba === 'sazonalidade' && (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-            {UNIDADES.map(u => (
+            {unidades.map(u => (
               <div key={u.id} className="bg-white rounded-xl border border-gray-200 p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <Building2 size={15} className="text-amber-600" />
@@ -614,7 +610,7 @@ export default function FaturamentoPage() {
 
       {/* Modal de edição de lançamento do histórico */}
       <Modal open={editandoFat !== null} onClose={() => setEditandoFat(null)}
-        title={editandoFat ? `Editar — ${formatDia(editandoFat.data)} (${editandoFat.unidade_id === '1' ? 'Centro' : 'Bairro'})` : ''}
+        title={editandoFat ? `Editar — ${formatDia(editandoFat.data)} (${unidades.find(u => u.id === editandoFat.unidade_id)?.nome ?? editandoFat.unidade_id})` : ''}
         size="md">
         {editandoFat && (() => {
           const totalEdit = parseFloat(editFatValor) || 0;
