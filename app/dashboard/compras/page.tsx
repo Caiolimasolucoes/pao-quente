@@ -6,15 +6,20 @@ import Modal from '@/components/ui/Modal';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Plus, Search, Building2, X, Package, Truck, ChevronRight, Link2, FileText, Pencil } from 'lucide-react';
 import { useUnit } from '@/contexts/UnitContext';
+import { useDateRange } from '@/contexts/DateRangeContext';
 import { createClient } from '@/lib/supabase/client';
 
-const unidadeLabel: Record<string, string> = { '1': 'Centro', '2': 'Bairro' };
-const unidadeCor: Record<string, string> = {
-  '1': 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/20',
-  '2': 'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20',
-};
+const CORES_BG_BADGE = [
+  'bg-amber-50 text-amber-700 ring-1 ring-amber-600/20',
+  'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20',
+  'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20',
+  'bg-purple-50 text-purple-700 ring-1 ring-purple-600/20',
+  'bg-red-50 text-red-700 ring-1 ring-red-600/20',
+];
 
-const CATEGORIAS_COMPRA = ['Mercearia','Laticínios','Carnes','Bebidas','Confeitaria','Embalagens','Ovos / Aves','Biscoitos'];
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+const CATEGORIAS_COMPRA_FALLBACK = ['Mercearia','Laticínios','Carnes','Bebidas','Confeitaria','Embalagens','Ovos / Aves','Biscoitos'];
 const UNIDADES_MEDIDA   = ['KG','L','UN','DZ','CX','PC','MACO'];
 
 type ResultItem =
@@ -22,12 +27,13 @@ type ResultItem =
   | { tipo: 'fornecedor'; fornNome: string; cat: string };
 
 function ProdutoAutocomplete({
-  comprasDB, produtosDB, fornecedoresDB, onSelect, produtosExtras, onAddProduto,
+  comprasDB, produtosDB, fornecedoresDB, onSelect, produtosExtras, onAddProduto, categorias,
 }: {
   comprasDB: any[]; produtosDB: any[]; fornecedoresDB: any[];
   onSelect: (prod: string, forn: string, un: string) => void;
   produtosExtras: { nome: string; unidade: string; cat: string }[];
   onAddProduto: (nome: string, unidade: string, cat: string) => void;
+  categorias: string[];
 }) {
   const [query, setQuery]             = useState('');
   const [aberto, setAberto]           = useState(false);
@@ -191,7 +197,7 @@ function ProdutoAutocomplete({
               <label className="block text-xs font-medium text-gray-700 mb-1">Categoria</label>
               <select value={novaCategoria} onChange={e => setNovaCategoria(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
-                {CATEGORIAS_COMPRA.map(c => <option key={c}>{c}</option>)}
+                {categorias.map((c: string) => <option key={c}>{c}</option>)}
               </select>
             </div>
           </div>
@@ -212,6 +218,7 @@ export default function ComprasPage() {
   const [listaCompras, setListaCompras]   = useState<any[]>([]);
   const [produtosDB, setProdutosDB]       = useState<any[]>([]);
   const [fornecedoresDB, setFornecedoresDB] = useState<any[]>([]);
+  const [categoriasDB, setCategoriasDB]   = useState<string[]>([]);
   const [carregando, setCarregando]       = useState(true);
   const [salvando, setSalvando]           = useState(false);
   const [erro, setErro]                   = useState('');
@@ -232,18 +239,32 @@ export default function ComprasPage() {
   const [editandoCompra, setEditandoCompra] = useState<any>(null);
   const [salvandoEdit, setSalvandoEdit]     = useState(false);
   const [erroEdit, setErroEdit]             = useState('');
-  const { filtroUnidade, unidades }          = useUnit();
+  const { filtroUnidade, unidades }       = useUnit();
+  const { mesInicio, mesFim, ano }        = useDateRange();
+
+  const periodoLabel = mesInicio === mesFim
+    ? `${MESES[mesInicio]} ${ano}`
+    : `${MESES[mesInicio]}–${MESES[mesFim]} ${ano}`;
+
+  const inRange = (dataStr: string) => {
+    const [y, m] = (dataStr as string).split('-').map(Number);
+    return y === ano && (m - 1) >= mesInicio && (m - 1) <= mesFim;
+  };
+
+  const CATEGORIAS_COMPRA = categoriasDB.length > 0 ? categoriasDB : CATEGORIAS_COMPRA_FALLBACK;
 
   async function carregarDados() {
     const supabase = createClient();
-    const [{ data: comprasData }, { data: prodData }, { data: fornData }] = await Promise.all([
+    const [{ data: comprasData }, { data: prodData }, { data: fornData }, { data: catData }] = await Promise.all([
       supabase.from('compras').select('*').order('data', { ascending: false }),
       supabase.from('produtos').select('*').order('nome'),
       supabase.from('fornecedores').select('*').order('nome'),
+      supabase.from('categorias_compra').select('nome').order('nome'),
     ]);
     setListaCompras(comprasData || []);
     setProdutosDB(prodData || []);
     setFornecedoresDB(fornData || []);
+    setCategoriasDB((catData || []).map((c: any) => c.nome as string).filter(Boolean));
     setCarregando(false);
   }
 
@@ -251,14 +272,25 @@ export default function ComprasPage() {
 
   const lista = listaCompras.filter(c => {
     const matchUnidade = filtroUnidade === 'todas' || c.unidade_id === filtroUnidade;
-    const matchBusca = c.produto.toLowerCase().includes(busca.toLowerCase()) ||
-                       c.fornecedor.toLowerCase().includes(busca.toLowerCase());
-    return matchUnidade && matchBusca;
+    const matchBusca = (c.produto || '').toLowerCase().includes(busca.toLowerCase()) ||
+                       (c.fornecedor || '').toLowerCase().includes(busca.toLowerCase());
+    const matchData = c.data ? inRange(c.data) : true;
+    return matchUnidade && matchBusca && matchData;
   });
 
-  const totalMes = lista.reduce((acc, c) => acc + Number(c.valor_total), 0);
-  const totalU1  = listaCompras.filter(c => c.unidade_id === '1').reduce((a, c) => a + Number(c.valor_total), 0);
-  const totalU2  = listaCompras.filter(c => c.unidade_id === '2').reduce((a, c) => a + Number(c.valor_total), 0);
+  const totalFiltrado = lista.reduce((acc, c) => acc + Number(c.valor_total), 0);
+
+  const totalPorUnidade = useMemo(() =>
+    unidades.map((u, i) => ({
+      id: u.id,
+      nome: u.nome,
+      cor: CORES_BG_BADGE[i % CORES_BG_BADGE.length],
+      total: listaCompras
+        .filter(c => c.unidade_id === u.id && c.data && inRange(c.data))
+        .reduce((a, c) => a + Number(c.valor_total), 0),
+      count: listaCompras.filter(c => c.unidade_id === u.id && c.data && inRange(c.data)).length,
+    })),
+  [listaCompras, unidades, mesInicio, mesFim, ano]);
 
   function handleOpenModal() {
     setFormProd(''); setFormForn(''); setFormUnMedida('KG');
@@ -356,22 +388,21 @@ export default function ComprasPage() {
     <>
       <Header title="Gestão de Compras" />
       <main className="flex-1 overflow-y-auto p-6 space-y-5">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 gap-4 ${totalPorUnidade.length <= 2 ? 'sm:grid-cols-3' : 'sm:grid-cols-2 xl:grid-cols-4'}`}>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 mb-1">Total de Compras</p>
-            <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(totalU1 + totalU2)}</p>
-            <p className="text-xs text-gray-400 mt-1">{listaCompras.length} lançamentos</p>
+            <p className="text-xs text-gray-500 mb-1">Total — {periodoLabel}</p>
+            <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(totalPorUnidade.reduce((a, u) => a + u.total, 0))}</p>
+            <p className="text-xs text-gray-400 mt-1">{totalPorUnidade.reduce((a, u) => a + u.count, 0)} lançamentos no período</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-1.5 mb-1"><div className="w-2 h-2 rounded-full bg-amber-500" /><p className="text-xs text-gray-500">Unidade Centro</p></div>
-            <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(totalU1)}</p>
-            <p className="text-xs text-gray-400 mt-1">{listaCompras.filter(c => c.unidade_id === '1').length} compras</p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-1.5 mb-1"><div className="w-2 h-2 rounded-full bg-blue-500" /><p className="text-xs text-gray-500">Unidade Bairro</p></div>
-            <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(totalU2)}</p>
-            <p className="text-xs text-gray-400 mt-1">{listaCompras.filter(c => c.unidade_id === '2').length} compras</p>
-          </div>
+          {totalPorUnidade.map(u => (
+            <div key={u.id} className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${u.cor}`}>{u.nome}</span>
+              </div>
+              <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(u.total)}</p>
+              <p className="text-xs text-gray-400 mt-1">{u.count} compras no período</p>
+            </div>
+          ))}
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -385,7 +416,7 @@ export default function ComprasPage() {
               </div>
               {filtroUnidade !== 'todas' && (
                 <span className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
-                  <Building2 size={12} /> {filtroUnidade === '1' ? 'Centro' : 'Bairro'}
+                  <Building2 size={12} /> {unidades.find(u => u.id === filtroUnidade)?.nome ?? filtroUnidade}
                 </span>
               )}
             </div>
@@ -416,9 +447,14 @@ export default function ComprasPage() {
                         <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-blue-600/20">{c.categoria}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${unidadeCor[c.unidade_id] || ''}`}>
-                          {unidadeLabel[c.unidade_id] || c.unidade_id}
-                        </span>
+                        {(() => {
+                          const idx = unidades.findIndex(u => u.id === c.unidade_id);
+                          return (
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${CORES_BG_BADGE[idx >= 0 ? idx % CORES_BG_BADGE.length : 0]}`}>
+                              {unidades[idx]?.nome ?? c.unidade_id}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.quantidade} {c.unidade}</td>
                       <td className="px-4 py-3 text-gray-600 text-right tabular-nums">{c.valor_unitario ? formatCurrency(c.valor_unitario) : '—'}</td>
@@ -438,7 +474,7 @@ export default function ComprasPage() {
                 <tfoot>
                   <tr className="border-t-2 border-gray-200 bg-amber-50">
                     <td colSpan={7} className="px-4 py-3 text-sm font-semibold text-gray-900">Total filtrado</td>
-                    <td className="px-4 py-3 text-sm font-bold text-amber-800 text-right tabular-nums">{formatCurrency(totalMes)}</td>
+                    <td className="px-4 py-3 text-sm font-bold text-amber-800 text-right tabular-nums">{formatCurrency(totalFiltrado)}</td>
                     <td />
                   </tr>
                 </tfoot>
@@ -482,7 +518,7 @@ export default function ComprasPage() {
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Produto / Fornecedor</label>
             <ProdutoAutocomplete key={modalOpen ? 'open' : 'closed'}
               comprasDB={listaCompras} produtosDB={produtosDB} fornecedoresDB={fornecedoresDB}
-              produtosExtras={produtosExtras}
+              produtosExtras={produtosExtras} categorias={CATEGORIAS_COMPRA}
               onSelect={(prod, forn, un) => { setFormProd(prod); setFormForn(forn); if (un) setFormUnMedida(un); }}
               onAddProduto={async (nome, unidade, cat) => {
                 setProdutosExtras(prev => [...prev, { nome, unidade, cat }]);
@@ -578,7 +614,7 @@ export default function ComprasPage() {
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Unidade</label>
               <div className="grid grid-cols-2 gap-3">
-                {[{ id: '1', nome: 'Unidade Centro' }, { id: '2', nome: 'Unidade Bairro' }].map(u => (
+                {unidades.map(u => (
                   <button key={u.id} onClick={() => setFormUnidade(u.id)}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-colors ${formUnidade === u.id ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-700 hover:border-amber-300'}`}>
                     <Building2 size={14} /> {u.nome}
