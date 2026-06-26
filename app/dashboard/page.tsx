@@ -194,16 +194,14 @@ export default function DashboardPage() {
     });
   }, [unidades, dreDB, ano, mesInicio, mesFim, periodoLabel]);
 
-  // Evolução mensal para o gráfico de linha
+  // Evolução mensal para o gráfico de linha (filtrado pelo período selecionado)
   const dreEvolucao = useMemo((): DREMes[] => {
-    const base = filtroUnidade === 'todas' ? dreDB : dreDB.filter(r => r.unidade_id === filtroUnidade);
-    const anos = [...new Set(base.map(r => r.ano))];
-    const multi = anos.length > 1;
+    const base = (filtroUnidade === 'todas' ? dreDB : dreDB.filter(r => r.unidade_id === filtroUnidade))
+      .filter(r => r.ano === ano && r.mes >= mesInicio && r.mes <= mesFim);
     const map: Record<string, { key: string; mes: string; fat: number; desp: number; lucro: number }> = {};
     for (const r of base) {
       const k = `${r.ano}-${String(r.mes).padStart(2, '0')}`;
-      const label = multi ? `${MESES[r.mes]}/${String(r.ano).slice(2)}` : MESES[r.mes];
-      if (!map[k]) map[k] = { key: k, mes: label, fat: 0, desp: 0, lucro: 0 };
+      if (!map[k]) map[k] = { key: k, mes: MESES[r.mes], fat: 0, desp: 0, lucro: 0 };
       map[k].fat   += Number(r.faturamento_total) || 0;
       map[k].desp  += Number(r.despesas_total)    || 0;
       map[k].lucro += Number(r.lucro)             || 0;
@@ -213,7 +211,7 @@ export default function DashboardPage() {
       .map(({ mes, fat, desp, lucro }) => ({
         ...EMPTY_DRE, mes, faturamentoTotal: fat, despesasTotal: desp, lucro,
       }));
-  }, [dreDB, filtroUnidade]);
+  }, [dreDB, filtroUnidade, ano, mesInicio, mesFim]);
 
   // Meios de pagamento reais do faturamento_diario
   const meiosPgto = useMemo(() => {
