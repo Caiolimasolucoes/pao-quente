@@ -489,7 +489,7 @@ export default function FaturamentoPage() {
             ) : (
               unidades
                 .filter(u => filtroUnidade === 'todas' || filtroUnidade === u.id)
-                .map(u => {
+                .map((u, uIdx) => {
                   const diasU = Array.from(new Set(
                     faturamentoData.filter(d => d.unidade_id === u.id && inRange(d.data)).map(d => d.data)
                   )).sort() as string[];
@@ -498,7 +498,7 @@ export default function FaturamentoPage() {
                   return (
                     <div key={u.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                       <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-                        <Building2 size={15} className={u.id === '1' ? 'text-amber-600' : 'text-blue-600'} />
+                        <Building2 size={15} style={{ color: CORES_UNIDADE[uIdx % CORES_UNIDADE.length] }} />
                         <h2 className="text-sm font-semibold text-gray-900">{u.nome}</h2>
                         <span className="text-xs text-gray-400 ml-auto">{diasU.length} dia{diasU.length !== 1 ? 's' : ''} lançados</span>
                       </div>

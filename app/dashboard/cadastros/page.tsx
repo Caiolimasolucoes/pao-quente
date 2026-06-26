@@ -44,11 +44,8 @@ const TIPOS_LUCRO: { tipo: MetaLucro['tipo']; label: string }[] = [
   { tipo: 'anual',  label: 'Anual' },
 ];
 
-const UNIDADES_OPT: { value: 'todas' | '1' | '2'; label: string }[] = [
-  { value: 'todas', label: 'Todas as unidades' },
-  { value: '1',     label: 'Centro' },
-  { value: '2',     label: 'Bairro' },
-];
+const CORES_UNIDADE_BG  = ['bg-amber-100','bg-blue-100','bg-emerald-100','bg-purple-100','bg-red-100'];
+const CORES_UNIDADE_TXT = ['text-amber-700','text-blue-700','text-emerald-700','text-purple-700','text-red-700'];
 
 function modalTitle(tipo: ModalTipo, editando: boolean): string {
   const prefix = editando ? 'Editar' : 'Novo';
@@ -67,7 +64,11 @@ export default function CadastrosPage() {
   const [aba, setAba] = useState<Aba>('unidades');
   const [catExpand, setCatExpand] = useState<string | null>(null);
   const { formas, toggleForma, adicionarForma, removerForma } = useFormasPagamento();
-  const { recarregarUnidades } = useUnit();
+  const { recarregarUnidades, unidades: unidadesCtx } = useUnit();
+  const unidadesOpt = [
+    { value: 'todas', label: 'Todas as unidades' },
+    ...unidadesCtx.map(u => ({ value: u.id, label: u.nome })),
+  ];
 
   // DB state
   const [unidadesPadaria, setUnidadesPadaria] = useState<any[]>([]);
@@ -240,17 +241,17 @@ export default function CadastrosPage() {
   const { metasFaturamento, metasDespesa, metasLucro, salvarMetasFaturamento, salvarMetasDespesa, salvarMetasLucro } = useMetas();
 
   const [anoFat,    setAnoFat]    = useState(2026);
-  const [unidFat,   setUnidFat]   = useState<'todas'|'1'|'2'>('todas');
+  const [unidFat,   setUnidFat]   = useState<string>('todas');
   const [draftFat,  setDraftFat]  = useState<Record<string, string>>({});
   const [savedFat,  setSavedFat]  = useState(false);
 
   const [anoDesp,   setAnoDesp]   = useState(2026);
-  const [unidDesp,  setUnidDesp]  = useState<'todas'|'1'|'2'>('todas');
+  const [unidDesp,  setUnidDesp]  = useState<string>('todas');
   const [draftDesp, setDraftDesp] = useState<Record<string, string>>({});
   const [savedDesp, setSavedDesp] = useState(false);
 
   const [anoLucro,   setAnoLucro]   = useState(2026);
-  const [unidLucro,  setUnidLucro]  = useState<'todas'|'1'|'2'>('todas');
+  const [unidLucro,  setUnidLucro]  = useState<string>('todas');
   const [draftLucro, setDraftLucro] = useState<Record<string, string>>({});
   const [savedLucro, setSavedLucro] = useState(false);
 
@@ -349,12 +350,12 @@ export default function CadastrosPage() {
               <BtnNovo label="Nova Unidade" onClick={() => abrirNovo('unidade')} />
             </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {unidadesPadaria.map((u) => (
+            {unidadesPadaria.map((u, uIdx) => (
               <div key={u.id} className="bg-white rounded-xl border border-gray-200 p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${u.id === '1' ? 'bg-amber-100' : 'bg-blue-100'}`}>
-                      <Building2 size={16} className={u.id === '1' ? 'text-amber-700' : 'text-blue-700'} />
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${CORES_UNIDADE_BG[uIdx % CORES_UNIDADE_BG.length]}`}>
+                      <Building2 size={16} className={CORES_UNIDADE_TXT[uIdx % CORES_UNIDADE_TXT.length]} />
                     </div>
                     <span className="text-sm font-semibold text-gray-900">{u.nome}</span>
                   </div>
@@ -628,8 +629,8 @@ export default function CadastrosPage() {
                   <select value={anoFat} onChange={(e) => { setAnoFat(Number(e.target.value)); setSavedFat(false); setDraftFat({}); }} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white">
                     {[2024,2025,2026,2027].map((a) => <option key={a}>{a}</option>)}
                   </select>
-                  <select value={unidFat} onChange={(e) => { setUnidFat(e.target.value as 'todas'|'1'|'2'); setSavedFat(false); setDraftFat({}); }} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white">
-                    {UNIDADES_OPT.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                  <select value={unidFat} onChange={(e) => { setUnidFat(e.target.value as string); setSavedFat(false); setDraftFat({}); }} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white">
+                    {unidadesOpt.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                   </select>
                 </div>
               </div>
@@ -655,7 +656,7 @@ export default function CadastrosPage() {
                 <div className="flex items-center gap-2"><Target size={15} className="text-red-500" /><span className="text-sm font-semibold text-gray-900">Metas de Despesa</span><span className="text-xs text-gray-400">— % do faturamento</span></div>
                 <div className="flex items-center gap-2">
                   <select value={anoDesp} onChange={(e) => { setAnoDesp(Number(e.target.value)); setSavedDesp(false); setDraftDesp({}); }} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white">{[2024,2025,2026,2027].map((a) => <option key={a}>{a}</option>)}</select>
-                  <select value={unidDesp} onChange={(e) => { setUnidDesp(e.target.value as 'todas'|'1'|'2'); setSavedDesp(false); setDraftDesp({}); }} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white">{UNIDADES_OPT.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}</select>
+                  <select value={unidDesp} onChange={(e) => { setUnidDesp(e.target.value as string); setSavedDesp(false); setDraftDesp({}); }} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white">{unidadesOpt.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}</select>
                 </div>
               </div>
               <table className="w-full text-sm">
@@ -680,7 +681,7 @@ export default function CadastrosPage() {
                 <div className="flex items-center gap-2"><Target size={15} className="text-emerald-600" /><span className="text-sm font-semibold text-gray-900">Metas de Lucro</span></div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <select value={anoLucro} onChange={(e) => { setAnoLucro(Number(e.target.value)); setSavedLucro(false); setDraftLucro({}); }} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white">{[2024,2025,2026,2027].map((a) => <option key={a}>{a}</option>)}</select>
-                  <select value={unidLucro} onChange={(e) => { setUnidLucro(e.target.value as 'todas'|'1'|'2'); setSavedLucro(false); setDraftLucro({}); }} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white">{UNIDADES_OPT.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}</select>
+                  <select value={unidLucro} onChange={(e) => { setUnidLucro(e.target.value as string); setSavedLucro(false); setDraftLucro({}); }} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white">{unidadesOpt.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}</select>
                 </div>
               </div>
               <table className="w-full text-sm">

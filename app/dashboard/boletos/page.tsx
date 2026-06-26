@@ -212,7 +212,7 @@ export default function BoletosPage() {
   const [formValorPago, setFormValorPago]   = useState('');
   const [salvandoPagamento, setSalvandoPagamento] = useState(false);
   // Campos do formulário
-  const [formUnidade, setFormUnidade]   = useState('1');
+  const [formUnidade, setFormUnidade]   = useState('');
   const [formForn, setFormForn]         = useState('');
   const [formCat, setFormCat]           = useState('');
   const [formSubCat, setFormSubCat]     = useState('');
@@ -259,6 +259,8 @@ export default function BoletosPage() {
   }
 
   function handleOpenModal() {
+    const defaultUnit = filtroUnidade !== 'todas' ? filtroUnidade : (unidades[0]?.id ?? '');
+    setFormUnidade(defaultUnit);
     setFormForn(''); setFormCat(''); setFormSubCat(''); setFormValor('');
     setFormVenc(''); setFormStatus('pendente'); setFormVinculado(false); setErro('');
     setModalOpen(true);
@@ -309,7 +311,7 @@ export default function BoletosPage() {
 
   function handleOpenEditar(boleto: any) {
     setEditingBoleto(boleto);
-    setFormUnidade(boleto.unidade_id || '1');
+    setFormUnidade(boleto.unidade_id || unidades[0]?.id || '');
     setFormForn(boleto.fornecedor || '');
     setFormCat(boleto.categoria || '');
     setFormSubCat(boleto.sub_categoria || '');

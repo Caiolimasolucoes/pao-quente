@@ -7,7 +7,7 @@ export interface MetaFaturamento {
   tipo: 'diario' | 'semanal' | 'mensal' | 'anual';
   valor: number;
   ano: number;
-  unidadeId: 'todas' | '1' | '2';
+  unidadeId: string;
 }
 
 export interface MetaDespesaCategoria {
@@ -15,7 +15,7 @@ export interface MetaDespesaCategoria {
   categoriaNome: string;
   percentualMax: number;
   ano: number;
-  unidadeId: 'todas' | '1' | '2';
+  unidadeId: string;
 }
 
 export interface MetaLucro {
@@ -23,7 +23,7 @@ export interface MetaLucro {
   tipo: 'mensal' | 'anual';
   valor: number;
   ano: number;
-  unidadeId: 'todas' | '1' | '2';
+  unidadeId: string;
 }
 
 const DEFAULT_FAT: MetaFaturamento[] = [
