@@ -342,21 +342,26 @@ export default function IndicadoresPage() {
     });
   }, [filtroUnidade, unidades, faturamentoDiario, mesInicio, mesFim, anoRange]);
 
-  // 2d — comparativo anual por unidade (dinâmico)
+  // 2d — comparativo anual por unidade (dados reais do banco para ambos os anos)
   const comparativoPorUnidade = useMemo(() => {
+    const prevYear = anoRange - 1;
     return unidadesDados.map((u, i) => {
-      const dreU = dreDB
+      const currRows = dreDB
         .filter(r => r.unidade_id === u.id && r.ano === anoRange)
-        .sort((a, b) => a.mes - b.mes)
-        .map(mapDre);
-      const data = dreU.map((d, idx) => ({
-        mes: d.mes,
-        [anoRange]: d.faturamentoTotal,
-        [anoRange - 1]: Math.round(d.faturamentoTotal * (0.84 + idx * 0.01)),
+        .sort((a, b) => a.mes - b.mes);
+      // Dados reais do ano anterior
+      const prevByMes: Record<number, number> = {};
+      for (const r of dreDB.filter(r => r.unidade_id === u.id && r.ano === prevYear)) {
+        prevByMes[r.mes] = (prevByMes[r.mes] || 0) + (Number(r.faturamento_total) || 0);
+      }
+      const data = currRows.map(r => ({
+        mes: MESES[r.mes],
+        [anoRange]: Number(r.faturamento_total) || 0,
+        [prevYear]: prevByMes[r.mes] ?? 0,
       }));
-      const last = dreU.at(-1);
-      const lastPrev = (data.at(-1)?.[anoRange - 1] as number) ?? 1;
-      const cresc = last ? calcPercent(last.faturamentoTotal - lastPrev, lastPrev) : 0;
+      const totalCurr = currRows.reduce((a, r) => a + (Number(r.faturamento_total) || 0), 0);
+      const totalPrev = Object.values(prevByMes).reduce((a, v) => a + v, 0);
+      const cresc = totalPrev > 0 ? ((totalCurr - totalPrev) / totalPrev) * 100 : 0;
       return { unidade: u, cor: CORES_UNIDADE[i % CORES_UNIDADE.length], data, cresc };
     });
   }, [unidadesDados, dreDB, anoRange]);
