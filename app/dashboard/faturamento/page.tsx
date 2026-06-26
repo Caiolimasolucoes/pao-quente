@@ -23,8 +23,8 @@ function getDiaSemana(dataStr: string) {
 }
 
 function formatDia(dataStr: string) {
-  const [, m, d] = dataStr.split('-');
-  return `${parseInt(d)}/${m}`;
+  const [y, m, d] = dataStr.split('-');
+  return `${d}/${m}/${y}`;
 }
 
 const DIST_FORMAS: Record<string, number> = {
@@ -352,7 +352,7 @@ export default function FaturamentoPage() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-sm font-semibold text-gray-900 mb-4">
-                Lançar Faturamento — {dataLancamento ? formatDia(dataLancamento) : formatDia(hoje)}/{(dataLancamento || hoje).split('-')[0]}
+                Lançar Faturamento — {dataLancamento ? formatDia(dataLancamento) : formatDia(hoje)}
               </h2>
               <div className="space-y-4">
                 <div>
@@ -526,12 +526,11 @@ export default function FaturamentoPage() {
                               {diasU.map(data => {
                                 const v = valorDia(data, u.id);
                                 const ds = diasSemana[getDiaSemana(data)];
-                                const isDom = getDiaSemana(data) === 0;
                                 return (
-                                  <tr key={data} className={`hover:bg-gray-50 transition-colors ${isDom ? 'opacity-50' : ''}`}>
+                                  <tr key={data} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-4 py-2.5 text-gray-700 font-medium">{formatDia(data)}</td>
                                     <td className="px-4 py-2.5">
-                                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${isDom ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-600'}`}>{ds}</span>
+                                      <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600">{ds}</span>
                                     </td>
                                     <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-900 bg-amber-50">
                                       {v > 0 ? formatCurrency(v) : <span className="text-gray-300">—</span>}
