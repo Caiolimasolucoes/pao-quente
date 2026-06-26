@@ -1,16 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Header from '@/components/layout/Header';
 import { formatCurrency } from '@/lib/utils';
 import { Lock, TrendingUp, Building2, CreditCard, CheckCircle2, AlertCircle, Pencil } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import { useUnit } from '@/contexts/UnitContext';
+import { useDateRange } from '@/contexts/DateRangeContext';
 import { useFormasPagamento } from '@/contexts/FormasPagamentoContext';
 import { createClient } from '@/lib/supabase/client';
 
 type Aba = 'lancamento' | 'historico' | 'sazonalidade';
 
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const CORES_UNIDADE = ['#D97706', '#3B82F6', '#10B981', '#8B5CF6', '#EF4444'];
 
 const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -63,6 +66,7 @@ function MediaDiaSemana({ dados }: { dados: { data: string; valor: number }[] })
 export default function FaturamentoPage() {
   const [aba, setAba]                   = useState<Aba>('lancamento');
   const { filtroUnidade, unidades }      = useUnit();
+  const { mesInicio, mesFim, ano }       = useDateRange();
   const [valorLancamento, setValorLancamento] = useState('');
   const [unidadeLancamento, setUnidadeLancamento] = useState('1');
   const [dataLancamento, setDataLancamento]   = useState('');
@@ -101,22 +105,39 @@ export default function FaturamentoPage() {
   const diferenca  = totalNum - somaFormas;
   const somaBate   = totalNum > 0 && Math.abs(diferenca) < 0.01;
 
-  const dadosFiltrados = filtroUnidade === 'todas'
+  const periodoLabel = mesInicio === mesFim
+    ? `${MESES[mesInicio]} ${ano}`
+    : `${MESES[mesInicio]}–${MESES[mesFim]} ${ano}`;
+
+  const inRange = (dataStr: string) => {
+    const [y, m] = (dataStr as string).split('-').map(Number);
+    return y === ano && (m - 1) >= mesInicio && (m - 1) <= mesFim;
+  };
+
+  const dadosFiltrados = (filtroUnidade === 'todas'
     ? faturamentoData
-    : faturamentoData.filter(d => d.unidade_id === filtroUnidade);
+    : faturamentoData.filter(d => d.unidade_id === filtroUnidade)
+  ).filter(d => inRange(d.data));
 
   const totalMes  = dadosFiltrados.filter(d => d.valor > 0).reduce((a: number, b: any) => a + Number(b.valor), 0);
-  const hojeData  = faturamentoData.filter(d => d.data === hoje);
+  const hojeData  = faturamentoData.filter(d => d.data === hoje && (filtroUnidade === 'todas' || d.unidade_id === filtroUnidade));
   const totalHoje = hojeData.reduce((a: number, b: any) => a + Number(b.valor), 0);
+
+  const totalGeral = faturamentoData.filter(d => inRange(d.data)).reduce((a: number, b: any) => a + Number(b.valor), 0);
 
   const diasComMov = dadosFiltrados.filter(d => d.valor > 0);
   const mediaFaturamento = diasComMov.length > 0 ? totalMes / diasComMov.length : 0;
 
-  const diasMovU1 = faturamentoData.filter(d => d.unidade_id === '1' && d.valor > 0);
-  const mediaU1   = diasMovU1.length > 0 ? diasMovU1.reduce((a, b) => a + Number(b.valor), 0) / diasMovU1.length : 0;
-
-  const diasMovU2 = faturamentoData.filter(d => d.unidade_id === '2' && d.valor > 0);
-  const mediaU2   = diasMovU2.length > 0 ? diasMovU2.reduce((a, b) => a + Number(b.valor), 0) / diasMovU2.length : 0;
+  const mediaPorUnidade = useMemo(() =>
+    unidades.map((u, i) => {
+      const dias = faturamentoData.filter(d => {
+        const [y, m] = (d.data as string).split('-').map(Number);
+        return d.unidade_id === u.id && d.valor > 0 && y === ano && (m - 1) >= mesInicio && (m - 1) <= mesFim;
+      });
+      const soma = dias.reduce((a, b) => a + Number(b.valor), 0);
+      return { id: u.id, nome: u.nome, cor: CORES_UNIDADE[i % CORES_UNIDADE.length], media: dias.length > 0 ? soma / dias.length : 0, diasCount: dias.length };
+    }),
+  [unidades, faturamentoData, ano, mesInicio, mesFim]);
 
   const diasUnicos = Array.from(new Set(faturamentoData.map(d => d.data))).sort() as string[];
 
@@ -266,8 +287,6 @@ export default function FaturamentoPage() {
     setEditandoFat(null);
   }
 
-  const mesNome = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-
   return (
     <>
       <Header title="Faturamento / Demanda" />
@@ -280,30 +299,31 @@ export default function FaturamentoPage() {
             <p className="text-xs text-gray-400 mt-1">{hojeData.filter(d => d.valor > 0).length > 0 ? 'Lançado' : 'Ainda não lançado'}</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 mb-1">Acumulado — {mesNome}</p>
+            <p className="text-xs text-gray-500 mb-1">Acumulado — {periodoLabel}</p>
             <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(totalMes)}</p>
             <p className="text-xs text-gray-400 mt-1">{diasComMov.length} dia{diasComMov.length !== 1 ? 's' : ''} lançados</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 mb-1">Total Geral</p>
-            <p className="text-[1.625rem] leading-none font-display italic text-amber-600">{formatCurrency(faturamentoData.reduce((a, b) => a + Number(b.valor), 0))}</p>
+            <p className="text-xs text-gray-500 mb-1">Total Geral — {periodoLabel}</p>
+            <p className="text-[1.625rem] leading-none font-display italic text-amber-600">{formatCurrency(totalGeral)}</p>
             <p className="text-xs text-gray-400 mt-1">Todas as unidades</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">Média de Faturamento / Dia</p>
             {filtroUnidade === 'todas' ? (
               <div className="space-y-2 mt-1">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" /><span className="text-[11px] text-gray-500 font-medium">Centro</span></div>
-                  <span className="text-sm font-bold text-gray-900 tabular-nums">{formatCurrency(mediaU1)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" /><span className="text-[11px] text-gray-500 font-medium">Bairro</span></div>
-                  <span className="text-sm font-bold text-gray-900 tabular-nums">{formatCurrency(mediaU2)}</span>
-                </div>
+                {mediaPorUnidade.map(u => (
+                  <div key={u.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: u.cor }} />
+                      <span className="text-[11px] text-gray-500 font-medium">{u.nome}</span>
+                    </div>
+                    <span className="text-sm font-bold text-gray-900 tabular-nums">{formatCurrency(u.media)}</span>
+                  </div>
+                ))}
                 <div className="pt-1 border-t border-gray-100 flex items-center justify-between">
                   <span className="text-[11px] text-gray-400">por dia c/ movimento</span>
-                  <span className="text-[11px] text-gray-400">{diasMovU1.length}d / {diasMovU2.length}d</span>
+                  <span className="text-[11px] text-gray-400">{mediaPorUnidade.map(u => `${u.diasCount}d`).join(' / ')}</span>
                 </div>
               </div>
             ) : (
@@ -471,9 +491,9 @@ export default function FaturamentoPage() {
                 .filter(u => filtroUnidade === 'todas' || filtroUnidade === u.id)
                 .map(u => {
                   const diasU = Array.from(new Set(
-                    faturamentoData.filter(d => d.unidade_id === u.id).map(d => d.data)
+                    faturamentoData.filter(d => d.unidade_id === u.id && inRange(d.data)).map(d => d.data)
                   )).sort() as string[];
-                  const totalU = faturamentoData.filter(d => d.unidade_id === u.id).reduce((a, b) => a + Number(b.valor), 0);
+                  const totalU = faturamentoData.filter(d => d.unidade_id === u.id && inRange(d.data)).reduce((a, b) => a + Number(b.valor), 0);
 
                   return (
                     <div key={u.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
