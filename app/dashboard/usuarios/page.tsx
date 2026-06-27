@@ -159,17 +159,13 @@ export default function UsuariosPage() {
     if (!form.nome.trim()) { setErro('Informe o nome do colaborador.'); return; }
     if (!form.email.trim()) { setErro('Informe o e-mail.'); return; }
     setSalvando(true); setErro('');
-    const supabase = createClient();
-    const { error } = await supabase.from('perfis').insert({
-      nome: form.nome.trim(),
-      email: form.email.trim().toLowerCase(),
-      perfil: form.perfil,
-      ativo: form.ativo,
-      unidade_restrita: form.unidade_restrita || null,
-      ver_historico_faturamento: form.ver_historico_faturamento,
-      ver_indicadores_sensiveis: form.ver_indicadores_sensiveis,
+    const res = await fetch('/api/usuarios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
     });
-    if (error) { setErro('Erro ao salvar: ' + error.message); setSalvando(false); return; }
+    const json = await res.json();
+    if (!res.ok) { setErro('Erro ao salvar: ' + json.error); setSalvando(false); return; }
     await carregarUsuarios();
     setPermissoes(abasSel, pResFinanceiro, pResCompras, form.nome || 'Novo Usuário');
     setSalvando(false);
@@ -192,17 +188,13 @@ export default function UsuariosPage() {
     if (!editando) return;
     if (!editForm.nome.trim()) { setErroEdit('Informe o nome.'); return; }
     setSalvandoEdit(true); setErroEdit('');
-    const supabase = createClient();
-    const { error } = await supabase.from('perfis').update({
-      nome: editForm.nome.trim(),
-      email: editForm.email.trim().toLowerCase(),
-      perfil: editForm.perfil,
-      ativo: editForm.ativo,
-      unidade_restrita: editForm.unidade_restrita || null,
-      ver_historico_faturamento: editForm.ver_historico_faturamento,
-      ver_indicadores_sensiveis: editForm.ver_indicadores_sensiveis,
-    }).eq('id', editando.id);
-    if (error) { setErroEdit('Erro ao salvar: ' + error.message); setSalvandoEdit(false); return; }
+    const res = await fetch('/api/usuarios', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editando.id, ...editForm }),
+    });
+    const json = await res.json();
+    if (!res.ok) { setErroEdit('Erro ao salvar: ' + json.error); setSalvandoEdit(false); return; }
     await carregarUsuarios();
     setSalvandoEdit(false);
     setEditModalOpen(false);
