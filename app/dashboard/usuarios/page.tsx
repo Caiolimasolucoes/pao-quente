@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import Modal from '@/components/ui/Modal';
-import { Plus, Shield, UserCheck, UserX, Eye, EyeOff, Building2, History, PlayCircle, Pencil } from 'lucide-react';
+import { Plus, Shield, UserCheck, UserX, Eye, EyeOff, Building2, History, PlayCircle, Pencil, Lock } from 'lucide-react';
 import type { PerfilUsuario } from '@/types';
 import { usePermissoes, TODAS_ABAS } from '@/contexts/PermissoesContext';
 import { useUnit } from '@/contexts/UnitContext';
@@ -119,6 +119,8 @@ export default function UsuariosPage() {
   // Modal novo usuário
   const [modalOpen, setModalOpen]         = useState(false);
   const [form, setForm]                   = useState(emptyForm());
+  const [formSenha, setFormSenha]         = useState('');
+  const [showSenha, setShowSenha]         = useState(false);
   const [abasSel, setAbasSel]             = useState<string[]>(TODAS_ABAS);
   const [pResFinanceiro, setPResFinanceiro] = useState(true);
   const [pResCompras, setPResCompras]     = useState(true);
@@ -148,6 +150,8 @@ export default function UsuariosPage() {
 
   function handleAbrir() {
     setForm(emptyForm());
+    setFormSenha('');
+    setShowSenha(false);
     setAbasSel(TODAS_ABAS);
     setPResFinanceiro(true);
     setPResCompras(true);
@@ -158,11 +162,13 @@ export default function UsuariosPage() {
   async function handleSalvar() {
     if (!form.nome.trim()) { setErro('Informe o nome do colaborador.'); return; }
     if (!form.email.trim()) { setErro('Informe o e-mail.'); return; }
+    if (!formSenha.trim()) { setErro('Defina uma senha provisória para o colaborador.'); return; }
+    if (formSenha.trim().length < 6) { setErro('A senha deve ter pelo menos 6 caracteres.'); return; }
     setSalvando(true); setErro('');
     const res = await fetch('/api/usuarios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, senha: formSenha }),
     });
     const json = await res.json();
     if (!res.ok) { setErro('Erro ao salvar: ' + json.error); setSalvando(false); return; }
@@ -339,6 +345,25 @@ export default function UsuariosPage() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo Usuário" size="md">
         <div className="space-y-4">
           <FormFields f={form} setF={setForm} unidades={unidades} />
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Senha provisória *</label>
+            <div className="relative">
+              <Lock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type={showSenha ? 'text' : 'password'}
+                placeholder="Mínimo 6 caracteres"
+                value={formSenha}
+                onChange={e => setFormSenha(e.target.value)}
+                className="w-full pl-8 pr-10 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+              <button type="button" onClick={() => setShowSenha(s => !s)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showSenha ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Compartilhe esta senha com o colaborador. Ele poderá alterá-la depois.</p>
+          </div>
 
           {/* Permissões de abas */}
           <div className="border border-gray-200 rounded-xl overflow-hidden">
