@@ -4,10 +4,11 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import Modal from '@/components/ui/Modal';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Plus, Search, Building2, X, Package, Truck, ChevronRight, Link2, FileText, Pencil } from 'lucide-react';
+import { Plus, Search, Building2, X, Package, Truck, ChevronRight, Link2, FileText, Pencil, Download } from 'lucide-react';
 import { useUnit } from '@/contexts/UnitContext';
 import { useDateRange } from '@/contexts/DateRangeContext';
 import { createClient } from '@/lib/supabase/client';
+import { exportToXlsx } from '@/lib/exportXlsx';
 
 const CORES_BG_BADGE = [
   'bg-amber-50 text-amber-700 ring-1 ring-amber-600/20',
@@ -239,6 +240,8 @@ export default function ComprasPage() {
   const [editandoCompra, setEditandoCompra] = useState<any>(null);
   const [salvandoEdit, setSalvandoEdit]     = useState(false);
   const [erroEdit, setErroEdit]             = useState('');
+  const [expOpen, setExpOpen]               = useState(false);
+  const [expUnit, setExpUnit]               = useState('todas');
   const { filtroUnidade, unidades }       = useUnit();
   const { mesInicio, mesFim, ano }        = useDateRange();
 
@@ -269,6 +272,27 @@ export default function ComprasPage() {
   }
 
   useEffect(() => { carregarDados(); }, []);
+
+  function handleExportCompras() {
+    const unidNome = (uid: string) => unidades.find(u => u.id === uid)?.nome ?? uid;
+    const rows = listaCompras
+      .filter(c => (expUnit === 'todas' || c.unidade_id === expUnit) && c.data && inRange(c.data))
+      .sort((a, b) => a.data.localeCompare(b.data))
+      .map(c => ({
+        'Data':           c.data ?? '',
+        'Produto':        c.produto ?? '',
+        'Fornecedor':     c.fornecedor ?? '',
+        'Categoria':      c.categoria ?? '',
+        'Unidade':        unidNome(c.unidade_id),
+        'Qtd':            c.quantidade ?? '',
+        'Un. Medida':     c.unidade ?? '',
+        'Valor Unit. (R$)': Number(c.valor_unitario) || 0,
+        'Total (R$)':     Number(c.valor_total) || 0,
+      }));
+    const label = expUnit === 'todas' ? 'Todas' : (unidades.find(u => u.id === expUnit)?.nome ?? expUnit);
+    exportToXlsx(rows, `compras_${label}_${periodoLabel.replace(/[–\s]/g, '_')}`);
+    setExpOpen(false);
+  }
 
   const lista = listaCompras.filter(c => {
     const matchUnidade = filtroUnidade === 'todas' || c.unidade_id === filtroUnidade;
@@ -420,6 +444,10 @@ export default function ComprasPage() {
                 </span>
               )}
             </div>
+            <button onClick={() => { setExpUnit(filtroUnidade); setExpOpen(true); }}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50">
+              <Download size={15} /> Baixar .xlsx
+            </button>
             <button onClick={handleOpenModal} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg" style={{ backgroundColor: '#D97706' }}>
               <Plus size={15} /> Nova Compra
             </button>
@@ -690,6 +718,28 @@ export default function ComprasPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Modal exportar compras */}
+      <Modal open={expOpen} onClose={() => setExpOpen(false)} title="Exportar Compras (.xlsx)" size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Unidade</label>
+            <select value={expUnit} onChange={e => setExpUnit(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+              <option value="todas">Todas as unidades</option>
+              {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+          </div>
+          <p className="text-xs text-gray-400">Período: {periodoLabel} · Respeita os filtros de data.</p>
+          <div className="flex justify-end gap-3 pt-1">
+            <button onClick={() => setExpOpen(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
+            <button onClick={handleExportCompras}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white rounded-lg" style={{ backgroundColor: '#D97706' }}>
+              <Download size={14} /> Baixar
+            </button>
+          </div>
+        </div>
       </Modal>
     </>
   );

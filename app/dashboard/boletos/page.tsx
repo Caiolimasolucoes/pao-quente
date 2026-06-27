@@ -5,10 +5,11 @@ import Header from '@/components/layout/Header';
 import Modal from '@/components/ui/Modal';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Plus, AlertCircle, Link2, Building2, Search, X, Truck, CheckCircle2, Pencil } from 'lucide-react';
+import { Plus, AlertCircle, Link2, Building2, Search, X, Truck, CheckCircle2, Pencil, Download } from 'lucide-react';
 import { useUnit } from '@/contexts/UnitContext';
 import { useDateRange } from '@/contexts/DateRangeContext';
 import { createClient } from '@/lib/supabase/client';
+import { exportToXlsx } from '@/lib/exportXlsx';
 
 const CATEGORIAS_BOLETO_FALLBACK = [
   { nome: 'Insumos',        subs: ['Mercearia','Laticínios','Carnes','Bebidas','Confeitaria','Embalagens'] },
@@ -211,6 +212,8 @@ export default function BoletosPage() {
   const [pagandoBoleto, setPagandoBoleto]   = useState<any>(null);
   const [formValorPago, setFormValorPago]   = useState('');
   const [salvandoPagamento, setSalvandoPagamento] = useState(false);
+  const [expOpen, setExpOpen]               = useState(false);
+  const [expUnit, setExpUnit]               = useState('todas');
   // Campos do formulário
   const [formUnidade, setFormUnidade]   = useState('');
   const [formForn, setFormForn]         = useState('');
@@ -235,6 +238,30 @@ export default function BoletosPage() {
   }
 
   useEffect(() => { carregarDados(); }, []);
+
+  function handleExportBoletos() {
+    const unidNome = (uid: string) => unidades.find(u => u.id === uid)?.nome ?? uid;
+    const rows = listaBoletos
+      .filter(b => (expUnit === 'todas' || b.unidade_id === expUnit) && inRange(b.vencimento))
+      .sort((a, b) => (a.vencimento ?? '').localeCompare(b.vencimento ?? ''))
+      .map(b => {
+        const juros = b.valor_pago != null ? Number(b.valor_pago) - Number(b.valor) : null;
+        return {
+          'Fornecedor':        b.fornecedor ?? '',
+          'Categoria':         b.categoria ?? '',
+          'Sub Categoria':     b.sub_categoria ?? '',
+          'Unidade':           unidNome(b.unidade_id),
+          'Valor (R$)':        Number(b.valor) || 0,
+          'Valor Pago (R$)':   b.valor_pago != null ? Number(b.valor_pago) : '',
+          'Juros/Multa (R$)':  juros != null && juros > 0 ? juros : '',
+          'Vencimento':        b.vencimento ?? '',
+          'Status':            calcStatus(b),
+        };
+      });
+    const label = expUnit === 'todas' ? 'Todas' : (unidades.find(u => u.id === expUnit)?.nome ?? expUnit);
+    exportToXlsx(rows, `boletos_${label}_${periodoLabel.replace(/[–\s]/g, '_')}`);
+    setExpOpen(false);
+  }
 
   const lista = listaBoletos.filter(b => {
     const statusComp   = calcStatus(b);
@@ -451,6 +478,10 @@ export default function BoletosPage() {
                 </>
               )}
             </div>
+            <button onClick={() => { setExpUnit(filtroUnidade); setExpOpen(true); }}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50">
+              <Download size={15} /> Baixar .xlsx
+            </button>
             <button onClick={handleOpenModal}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg" style={{ backgroundColor: '#D97706' }}>
               <Plus size={15} /> Novo Boleto
@@ -793,6 +824,28 @@ export default function BoletosPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Modal exportar boletos */}
+      <Modal open={expOpen} onClose={() => setExpOpen(false)} title="Exportar Boletos (.xlsx)" size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Unidade</label>
+            <select value={expUnit} onChange={e => setExpUnit(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+              <option value="todas">Todas as unidades</option>
+              {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+          </div>
+          <p className="text-xs text-gray-400">Período: {periodoLabel} · Respeita os filtros de data.</p>
+          <div className="flex justify-end gap-3 pt-1">
+            <button onClick={() => setExpOpen(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
+            <button onClick={handleExportBoletos}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white rounded-lg" style={{ backgroundColor: '#D97706' }}>
+              <Download size={14} /> Baixar
+            </button>
+          </div>
+        </div>
       </Modal>
     </>
   );

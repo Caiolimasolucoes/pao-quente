@@ -3,12 +3,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import Header from '@/components/layout/Header';
 import { formatCurrency } from '@/lib/utils';
-import { Lock, TrendingUp, Building2, CreditCard, CheckCircle2, AlertCircle, Pencil } from 'lucide-react';
+import { Lock, TrendingUp, Building2, CreditCard, CheckCircle2, AlertCircle, Pencil, Download } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import { useUnit } from '@/contexts/UnitContext';
 import { useDateRange } from '@/contexts/DateRangeContext';
 import { useFormasPagamento } from '@/contexts/FormasPagamentoContext';
 import { createClient } from '@/lib/supabase/client';
+import { exportToXlsx } from '@/lib/exportXlsx';
 
 type Aba = 'lancamento' | 'historico' | 'sazonalidade';
 
@@ -83,6 +84,8 @@ export default function FaturamentoPage() {
   const [editFatValor, setEditFatValor]       = useState('');
   const [editFatMeios, setEditFatMeios]       = useState<Record<string, string>>({});
   const [salvandoEditFat, setSalvandoEditFat] = useState(false);
+  const [expOpen, setExpOpen]                 = useState(false);
+  const [expUnit, setExpUnit]                 = useState('todas');
 
   const hoje = new Date().toISOString().split('T')[0];
 
@@ -99,6 +102,29 @@ export default function FaturamentoPage() {
   }
 
   useEffect(() => { carregarFaturamento(); }, []);
+
+  function handleExportFaturamento() {
+    const unidNome = (uid: string) => unidades.find(u => u.id === uid)?.nome ?? uid;
+    const rows = faturamentoData
+      .filter(d => (expUnit === 'todas' || d.unidade_id === expUnit) && inRange(d.data))
+      .sort((a, b) => a.data.localeCompare(b.data))
+      .map(d => {
+        const meios = (d.meios || {}) as Record<string, number>;
+        const row: Record<string, string | number | null> = {
+          'Data':      d.data ?? '',
+          'Dia':       diasSemana[getDiaSemana(d.data)] ?? '',
+          'Unidade':   unidNome(d.unidade_id),
+          'Total (R$)': Number(d.valor) || 0,
+        };
+        for (const f of formasAtivas) {
+          row[f.nome + ' (R$)'] = meios[f.id] != null ? Number(meios[f.id]) : '';
+        }
+        return row;
+      });
+    const label = expUnit === 'todas' ? 'Todas' : (unidades.find(u => u.id === expUnit)?.nome ?? expUnit);
+    exportToXlsx(rows, `faturamento_${label}_${periodoLabel.replace(/[–\s]/g, '_')}`);
+    setExpOpen(false);
+  }
 
   const totalNum  = parseFloat(valorLancamento) || 0;
   const somaFormas = formasAtivas.reduce((sum, f) => sum + (parseFloat(valoresForma[f.id] || '0') || 0), 0);
@@ -335,17 +361,25 @@ export default function FaturamentoPage() {
           </div>
         </div>
 
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-          {([
-            { key: 'lancamento', label: 'Lançamento do Dia' },
-            { key: 'historico',  label: 'Histórico' },
-            { key: 'sazonalidade', label: 'Sazonalidade' },
-          ] as { key: Aba; label: string }[]).map(t => (
-            <button key={t.key} onClick={() => setAba(t.key)}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${aba === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              {t.label}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+            {([
+              { key: 'lancamento', label: 'Lançamento do Dia' },
+              { key: 'historico',  label: 'Histórico' },
+              { key: 'sazonalidade', label: 'Sazonalidade' },
+            ] as { key: Aba; label: string }[]).map(t => (
+              <button key={t.key} onClick={() => setAba(t.key)}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${aba === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {aba === 'historico' && (
+            <button onClick={() => { setExpUnit(filtroUnidade); setExpOpen(true); }}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50">
+              <Download size={15} /> Baixar .xlsx
             </button>
-          ))}
+          )}
         </div>
 
         {aba === 'lancamento' && (
@@ -687,6 +721,28 @@ export default function FaturamentoPage() {
             </div>
           );
         })()}
+      </Modal>
+
+      {/* Modal exportar faturamento */}
+      <Modal open={expOpen} onClose={() => setExpOpen(false)} title="Exportar Faturamento (.xlsx)" size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Unidade</label>
+            <select value={expUnit} onChange={e => setExpUnit(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+              <option value="todas">Todas as unidades</option>
+              {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+          </div>
+          <p className="text-xs text-gray-400">Período: {periodoLabel} · Respeita os filtros de data.</p>
+          <div className="flex justify-end gap-3 pt-1">
+            <button onClick={() => setExpOpen(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
+            <button onClick={handleExportFaturamento}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white rounded-lg" style={{ backgroundColor: '#D97706' }}>
+              <Download size={14} /> Baixar
+            </button>
+          </div>
+        </div>
       </Modal>
     </>
   );
