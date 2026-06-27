@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 
 export const TODAS_ABAS = [
   '/dashboard',
@@ -13,7 +13,26 @@ export const TODAS_ABAS = [
   '/dashboard/usuarios',
 ];
 
+const ABAS_POR_PERFIL: Record<string, string[]> = {
+  'Administrador':      TODAS_ABAS,
+  'Gestor Financeiro':  TODAS_ABAS.filter(a => a !== '/dashboard/usuarios'),
+  'Operacional':        ['/dashboard', '/dashboard/faturamento', '/dashboard/compras', '/dashboard/cadastros'],
+  'Visualizador':       TODAS_ABAS.filter(a => !['/dashboard/usuarios', '/dashboard/cadastros'].includes(a)),
+};
+
+export type UsuarioLogado = {
+  id: string;
+  nome: string;
+  email: string;
+  perfil: string;
+  ativo: boolean;
+  unidade_restrita: string | null;
+  ver_historico_faturamento: boolean;
+  ver_indicadores_sensiveis: boolean;
+};
+
 interface PermissoesCtx {
+  usuarioLogado: UsuarioLogado | null;
   abasVisiveis: string[];
   resumoFinanceiro: boolean;
   resumoCompras: boolean;
@@ -34,6 +53,7 @@ interface PermissoesCtx {
 }
 
 const Ctx = createContext<PermissoesCtx>({
+  usuarioLogado: null,
   abasVisiveis: TODAS_ABAS,
   resumoFinanceiro: true,
   resumoCompras: true,
@@ -45,7 +65,19 @@ const Ctx = createContext<PermissoesCtx>({
   resetarAdmin: () => {},
 });
 
+function aplicarPerfil(u: UsuarioLogado) {
+  return {
+    abas:       ABAS_POR_PERFIL[u.perfil] ?? TODAS_ABAS,
+    resFin:     u.ver_indicadores_sensiveis,
+    resComp:    true,
+    historico:  u.ver_historico_faturamento,
+    indicadores: u.ver_indicadores_sensiveis,
+    unidade:    u.unidade_restrita ?? null,
+  };
+}
+
 export function PermissoesProvider({ children }: { children: React.ReactNode }) {
+  const [usuarioLogado, setUsuarioLogado]             = useState<UsuarioLogado | null>(null);
   const [abasVisiveis, setAbasVisiveis]               = useState<string[]>(TODAS_ABAS);
   const [resumoFinanceiro, setResFinanceiro]           = useState(true);
   const [resumoCompras, setResCompras]                 = useState(true);
@@ -53,6 +85,26 @@ export function PermissoesProvider({ children }: { children: React.ReactNode }) 
   const [verIndicadoresSensiveis, setVerIndicadores]   = useState(true);
   const [unidadeRestrita, setUnidadeRestrita]          = useState<string | null>(null);
   const [simulandoComo, setSimulandoComo]              = useState<string | null>(null);
+
+  useEffect(() => {
+    async function carregarSessao() {
+      try {
+        const res = await fetch('/api/usuarios/me');
+        if (!res.ok) return;
+        const perfil: UsuarioLogado | null = await res.json();
+        if (!perfil) return;
+        setUsuarioLogado(perfil);
+        const p = aplicarPerfil(perfil);
+        setAbasVisiveis(p.abas);
+        setResFinanceiro(p.resFin);
+        setResCompras(p.resComp);
+        setVerHistorico(p.historico);
+        setVerIndicadores(p.indicadores);
+        setUnidadeRestrita(p.unidade);
+      } catch { /* sessão não disponível */ }
+    }
+    carregarSessao();
+  }, []);
 
   function setPermissoes(
     abas: string[],
@@ -73,17 +125,28 @@ export function PermissoesProvider({ children }: { children: React.ReactNode }) 
   }
 
   function resetarAdmin() {
-    setAbasVisiveis(TODAS_ABAS);
-    setResFinanceiro(true);
-    setResCompras(true);
-    setVerHistorico(true);
-    setVerIndicadores(true);
-    setUnidadeRestrita(null);
     setSimulandoComo(null);
+    if (usuarioLogado) {
+      const p = aplicarPerfil(usuarioLogado);
+      setAbasVisiveis(p.abas);
+      setResFinanceiro(p.resFin);
+      setResCompras(p.resComp);
+      setVerHistorico(p.historico);
+      setVerIndicadores(p.indicadores);
+      setUnidadeRestrita(p.unidade);
+    } else {
+      setAbasVisiveis(TODAS_ABAS);
+      setResFinanceiro(true);
+      setResCompras(true);
+      setVerHistorico(true);
+      setVerIndicadores(true);
+      setUnidadeRestrita(null);
+    }
   }
 
   return (
     <Ctx.Provider value={{
+      usuarioLogado,
       abasVisiveis, resumoFinanceiro, resumoCompras,
       verHistoricoFaturamento, verIndicadoresSensiveis,
       unidadeRestrita, simulandoComo,

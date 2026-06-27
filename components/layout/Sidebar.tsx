@@ -25,7 +25,7 @@ export const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { abasVisiveis, simulandoComo, resetarAdmin } = usePermissoes();
+  const { usuarioLogado, abasVisiveis, simulandoComo, resetarAdmin } = usePermissoes();
   const { open, close } = useSidebar();
 
   async function handleLogout() {
@@ -121,11 +121,16 @@ export default function Sidebar() {
         )}
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-amber-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-            {simulandoComo ? simulandoComo.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase() : 'MS'}
+            {(simulandoComo ?? usuarioLogado?.nome ?? '?')
+              .split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-white text-xs font-medium truncate">{simulandoComo ?? 'Maria Silva'}</p>
-            <p className="text-amber-400/70 text-xs truncate">{simulandoComo ? 'Simulação' : 'Administrador'}</p>
+            <p className="text-white text-xs font-medium truncate">
+              {simulandoComo ?? usuarioLogado?.nome ?? '…'}
+            </p>
+            <p className="text-amber-400/70 text-xs truncate">
+              {simulandoComo ? 'Simulação' : (usuarioLogado?.perfil ?? '…')}
+            </p>
           </div>
           <button
             onClick={handleLogout}
