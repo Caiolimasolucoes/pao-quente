@@ -161,7 +161,6 @@ export default function UsuariosPage() {
     setSalvando(true); setErro('');
     const supabase = createClient();
     const { error } = await supabase.from('perfis').insert({
-      id: `usr-${Date.now()}`,
       nome: form.nome.trim(),
       email: form.email.trim().toLowerCase(),
       perfil: form.perfil,
