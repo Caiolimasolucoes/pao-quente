@@ -95,7 +95,7 @@ export async function PUT(req: NextRequest) {
 
   if (!id) return NextResponse.json({ error: 'ID obrigatório.' }, { status: 400 });
 
-  const { error } = await supabaseAdmin.from('perfis').update({
+  const { data: updated, error } = await supabaseAdmin.from('perfis').update({
     nome: nome?.trim(),
     email: email ? emailNormalizado(email) : undefined,
     perfil,
@@ -103,10 +103,12 @@ export async function PUT(req: NextRequest) {
     unidade_restrita: unidade_restrita || null,
     ver_historico_faturamento,
     ver_indicadores_sensiveis,
-  }).eq('id', id);
+  }).eq('id', id).select();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  if (!updated || updated.length === 0)
+    return NextResponse.json({ error: 'Usuário não encontrado. Nenhuma linha foi atualizada.' }, { status: 404 });
+  return NextResponse.json({ ok: true, data: updated[0] });
 }
 
 export async function DELETE(req: NextRequest) {

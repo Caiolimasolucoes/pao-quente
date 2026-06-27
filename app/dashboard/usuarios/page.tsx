@@ -219,13 +219,6 @@ export default function UsuariosPage() {
     const json = await res.json();
     if (!res.ok) { setErroEdit('Erro ao salvar: ' + json.error); setSalvandoEdit(false); return; }
     await carregarUsuarios();
-    setPermissoes(
-      editAbasSel, editResFinanceiro, editResCompras,
-      editForm.ver_historico_faturamento,
-      editForm.ver_indicadores_sensiveis,
-      editForm.unidade_restrita || null,
-      editForm.nome || 'Usuário',
-    );
     setSalvandoEdit(false);
     setEditModalOpen(false);
     setEditando(null);
@@ -492,8 +485,8 @@ export default function UsuariosPage() {
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={() => { setEditModalOpen(false); setEditando(null); }} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
               <button onClick={handleSalvarEdicao} disabled={salvandoEdit}
-                className="px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-60 flex items-center gap-2" style={{ backgroundColor: '#D97706' }}>
-                <PlayCircle size={14} /> {salvandoEdit ? 'Salvando…' : 'Salvar e Simular Acesso'}
+                className="px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-60" style={{ backgroundColor: '#D97706' }}>
+                {salvandoEdit ? 'Salvando…' : 'Salvar Alterações'}
               </button>
             </div>
           </div>
