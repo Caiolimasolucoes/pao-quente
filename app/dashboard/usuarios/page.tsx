@@ -133,7 +133,7 @@ export default function UsuariosPage() {
   async function carregarUsuarios() {
     const supabase = createClient();
     const { data } = await supabase
-      .from('usuarios')
+      .from('perfis')
       .select('*')
       .order('nome');
     setListaUsuarios((data || []) as Usuario[]);
@@ -160,7 +160,7 @@ export default function UsuariosPage() {
     if (!form.email.trim()) { setErro('Informe o e-mail.'); return; }
     setSalvando(true); setErro('');
     const supabase = createClient();
-    const { error } = await supabase.from('usuarios').insert({
+    const { error } = await supabase.from('perfis').insert({
       id: `usr-${Date.now()}`,
       nome: form.nome.trim(),
       email: form.email.trim().toLowerCase(),
@@ -194,7 +194,7 @@ export default function UsuariosPage() {
     if (!editForm.nome.trim()) { setErroEdit('Informe o nome.'); return; }
     setSalvandoEdit(true); setErroEdit('');
     const supabase = createClient();
-    const { error } = await supabase.from('usuarios').update({
+    const { error } = await supabase.from('perfis').update({
       nome: editForm.nome.trim(),
       email: editForm.email.trim().toLowerCase(),
       perfil: editForm.perfil,
