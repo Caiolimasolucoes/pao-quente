@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
 
   const emailNorm = emailNormalizado(email);
 
+  // abas_permitidas vai no user_metadata do Auth, não na tabela perfis
   const perfilData = {
     nome: nome.trim(),
     email: emailNorm,
@@ -37,14 +38,14 @@ export async function POST(req: NextRequest) {
     unidade_restrita: unidade_restrita || null,
     ver_historico_faturamento,
     ver_indicadores_sensiveis,
-    abas_permitidas: abas_permitidas ?? null,
   };
 
-  // 1. Tentar criar o usuário no Supabase Auth
+  // 1. Tentar criar o usuário no Supabase Auth (com abas_permitidas nos metadados)
   const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
     email: emailNorm,
     password: senha,
     email_confirm: true,
+    user_metadata: { abas_permitidas: abas_permitidas ?? null },
   });
 
   let userId: string;
@@ -69,7 +70,10 @@ export async function POST(req: NextRequest) {
     }
 
     userId = existing.id;
-    await supabaseAdmin.auth.admin.updateUserById(userId, { password: senha });
+    await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: senha,
+      user_metadata: { abas_permitidas: abas_permitidas ?? null },
+    });
   } else {
     userId = authData.user.id;
   }
@@ -93,6 +97,7 @@ export async function PUT(req: NextRequest) {
 
   if (!id) return NextResponse.json({ error: 'ID obrigatório.' }, { status: 400 });
 
+  // Atualiza perfis (sem abas_permitidas, que fica nos metadados Auth)
   const { data: updated, error } = await supabaseAdmin.from('perfis').update({
     nome: nome?.trim(),
     email: email ? emailNormalizado(email) : undefined,
@@ -101,12 +106,19 @@ export async function PUT(req: NextRequest) {
     unidade_restrita: unidade_restrita || null,
     ver_historico_faturamento,
     ver_indicadores_sensiveis,
-    abas_permitidas: abas_permitidas ?? null,
   }).eq('id', id).select();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!updated || updated.length === 0)
     return NextResponse.json({ error: 'Usuário não encontrado.' }, { status: 404 });
+
+  // Salva abas_permitidas nos metadados do auth user
+  if (abas_permitidas !== undefined) {
+    await supabaseAdmin.auth.admin.updateUserById(id, {
+      user_metadata: { abas_permitidas },
+    });
+  }
+
   return NextResponse.json({ ok: true, data: updated[0] });
 }
 

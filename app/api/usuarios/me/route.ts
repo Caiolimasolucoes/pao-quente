@@ -7,11 +7,17 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json(null);
 
-  const { data } = await supabaseAdmin
+  const { data: perfil } = await supabaseAdmin
     .from('perfis')
     .select('*')
     .eq('id', user.id)
     .maybeSingle();
 
-  return NextResponse.json(data ?? null);
+  if (!perfil) return NextResponse.json(null);
+
+  // Lê abas_permitidas do user_metadata (não precisa de coluna no banco)
+  const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(user.id);
+  const abas_permitidas = authUser?.user?.user_metadata?.abas_permitidas ?? null;
+
+  return NextResponse.json({ ...perfil, abas_permitidas });
 }
