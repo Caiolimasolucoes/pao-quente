@@ -172,7 +172,7 @@ export default function UsuariosPage() {
     const res = await fetch('/api/usuarios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, senha: formSenha }),
+      body: JSON.stringify({ ...form, senha: formSenha, abas_permitidas: abasSel }),
     });
     const json = await res.json();
     if (!res.ok) { setErro('Erro ao salvar: ' + json.error); setSalvando(false); return; }
@@ -214,7 +214,7 @@ export default function UsuariosPage() {
     const res = await fetch('/api/usuarios', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: editando.id, ...editForm }),
+      body: JSON.stringify({ id: editando.id, ...editForm, abas_permitidas: editAbasSel }),
     });
     const json = await res.json();
     if (!res.ok) { setErroEdit('Erro ao salvar: ' + json.error); setSalvandoEdit(false); return; }

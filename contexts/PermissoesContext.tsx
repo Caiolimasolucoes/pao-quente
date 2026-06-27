@@ -29,6 +29,7 @@ export type UsuarioLogado = {
   unidade_restrita: string | null;
   ver_historico_faturamento: boolean;
   ver_indicadores_sensiveis: boolean;
+  abas_permitidas: string[] | null;
 };
 
 interface PermissoesCtx {
@@ -67,7 +68,7 @@ const Ctx = createContext<PermissoesCtx>({
 
 function aplicarPerfil(u: UsuarioLogado) {
   return {
-    abas:       ABAS_POR_PERFIL[u.perfil] ?? TODAS_ABAS,
+    abas:       u.abas_permitidas ?? ABAS_POR_PERFIL[u.perfil] ?? TODAS_ABAS,
     resFin:     u.ver_indicadores_sensiveis,
     resComp:    true,
     historico:  u.ver_historico_faturamento,

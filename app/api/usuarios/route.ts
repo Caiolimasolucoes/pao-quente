@@ -20,7 +20,8 @@ function isEmailDuplicado(msg: string) {
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { nome, email, senha, perfil, ativo, unidade_restrita,
-          ver_historico_faturamento, ver_indicadores_sensiveis } = body;
+          ver_historico_faturamento, ver_indicadores_sensiveis,
+          abas_permitidas } = body;
 
   if (!nome?.trim()) return NextResponse.json({ error: 'Nome é obrigatório.' }, { status: 400 });
   if (!email?.trim()) return NextResponse.json({ error: 'E-mail é obrigatório.' }, { status: 400 });
@@ -36,6 +37,7 @@ export async function POST(req: NextRequest) {
     unidade_restrita: unidade_restrita || null,
     ver_historico_faturamento,
     ver_indicadores_sensiveis,
+    abas_permitidas: abas_permitidas ?? null,
   };
 
   // 1. Tentar criar o usuário no Supabase Auth
@@ -61,16 +63,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'E-mail já cadastrado. Não foi possível recuperar o usuário existente.' }, { status: 400 });
     }
 
-    // Verificar se já tem perfil — se sim, é duplicata real
     const { data: perfilExist } = await supabaseAdmin.from('perfis').select('id').eq('id', existing.id).maybeSingle();
     if (perfilExist) {
       return NextResponse.json({ error: 'Já existe um colaborador cadastrado com esse e-mail.' }, { status: 400 });
     }
 
-    // Auth existe mas sem perfil — criar o perfil com o ID já existente
     userId = existing.id;
-
-    // Atualizar a senha do auth user para a nova
     await supabaseAdmin.auth.admin.updateUserById(userId, { password: senha });
   } else {
     userId = authData.user.id;
@@ -80,7 +78,6 @@ export async function POST(req: NextRequest) {
   const { error: perfisError } = await supabaseAdmin.from('perfis').insert({ id: userId, ...perfilData });
 
   if (perfisError) {
-    // Só faz rollback se foi a gente que criou o auth user agora
     if (!authError) await supabaseAdmin.auth.admin.deleteUser(userId);
     return NextResponse.json({ error: perfisError.message }, { status: 500 });
   }
@@ -91,7 +88,8 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const body = await req.json();
   const { id, nome, email, perfil, ativo, unidade_restrita,
-          ver_historico_faturamento, ver_indicadores_sensiveis } = body;
+          ver_historico_faturamento, ver_indicadores_sensiveis,
+          abas_permitidas } = body;
 
   if (!id) return NextResponse.json({ error: 'ID obrigatório.' }, { status: 400 });
 
@@ -103,11 +101,12 @@ export async function PUT(req: NextRequest) {
     unidade_restrita: unidade_restrita || null,
     ver_historico_faturamento,
     ver_indicadores_sensiveis,
+    abas_permitidas: abas_permitidas ?? null,
   }).eq('id', id).select();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!updated || updated.length === 0)
-    return NextResponse.json({ error: 'Usuário não encontrado. Nenhuma linha foi atualizada.' }, { status: 404 });
+    return NextResponse.json({ error: 'Usuário não encontrado.' }, { status: 404 });
   return NextResponse.json({ ok: true, data: updated[0] });
 }
 
