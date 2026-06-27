@@ -125,11 +125,14 @@ export default function UsuariosPage() {
   const [pResCompras, setPResCompras]     = useState(true);
 
   // Modal editar usuário
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editando, setEditando]           = useState<Usuario | null>(null);
-  const [editForm, setEditForm]           = useState(emptyForm());
-  const [erroEdit, setErroEdit]           = useState('');
-  const [salvandoEdit, setSalvandoEdit]   = useState(false);
+  const [editModalOpen, setEditModalOpen]   = useState(false);
+  const [editando, setEditando]             = useState<Usuario | null>(null);
+  const [editForm, setEditForm]             = useState(emptyForm());
+  const [erroEdit, setErroEdit]             = useState('');
+  const [salvandoEdit, setSalvandoEdit]     = useState(false);
+  const [editAbasSel, setEditAbasSel]       = useState<string[]>(TODAS_ABAS);
+  const [editResFinanceiro, setEditResFin]  = useState(true);
+  const [editResCompras, setEditResComp]    = useState(true);
 
   async function carregarUsuarios() {
     const res = await fetch('/api/usuarios');
@@ -180,6 +183,10 @@ export default function UsuariosPage() {
     setModalOpen(false);
   }
 
+  function toggleEditAba(href: string) {
+    setEditAbasSel(prev => prev.includes(href) ? prev.filter(a => a !== href) : [...prev, href]);
+  }
+
   function handleOpenEditar(u: Usuario) {
     setEditando(u);
     setEditForm({
@@ -188,6 +195,9 @@ export default function UsuariosPage() {
       ver_historico_faturamento: u.ver_historico_faturamento,
       ver_indicadores_sensiveis: u.ver_indicadores_sensiveis,
     });
+    setEditAbasSel(TODAS_ABAS);
+    setEditResFin(true);
+    setEditResComp(true);
     setErroEdit('');
     setEditModalOpen(true);
   }
@@ -204,6 +214,13 @@ export default function UsuariosPage() {
     const json = await res.json();
     if (!res.ok) { setErroEdit('Erro ao salvar: ' + json.error); setSalvandoEdit(false); return; }
     await carregarUsuarios();
+    setPermissoes(
+      editAbasSel, editResFinanceiro, editResCompras,
+      editForm.ver_historico_faturamento,
+      editForm.ver_indicadores_sensiveis,
+      editForm.unidade_restrita || null,
+      editForm.nome || 'Usuário',
+    );
     setSalvandoEdit(false);
     setEditModalOpen(false);
     setEditando(null);
@@ -425,12 +442,53 @@ export default function UsuariosPage() {
         {editando && (
           <div className="space-y-4">
             <FormFields f={editForm} setF={setEditForm} unidades={unidades} />
+
+            {/* Permissões de abas */}
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200 flex items-center gap-2">
+                <Shield size={13} className="text-amber-600" />
+                <p className="text-xs font-semibold text-gray-700">Acesso às Abas do Sistema</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {navItems.map(item => {
+                  const Icon = item.icon;
+                  const ativo = editAbasSel.includes(item.href);
+                  return (
+                    <div key={item.href} className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 cursor-pointer" onClick={() => toggleEditAba(item.href)}>
+                      <span className="flex items-center gap-2 text-xs text-gray-700">
+                        <Icon size={13} className="text-gray-400 flex-shrink-0" /> {item.label}
+                      </span>
+                      <div className={`w-8 h-4 rounded-full transition-colors relative flex-shrink-0 ${ativo ? 'bg-amber-500' : 'bg-gray-200'}`}>
+                        <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 shadow transition-transform ${ativo ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="bg-gray-50 px-4 py-2.5 border-t border-gray-200">
+                <p className="text-xs font-semibold text-gray-600">Resumos no Dashboard</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {[
+                  { key: 'fin', label: 'Resumo financeiro (faturamento, lucro, margens)', value: editResFinanceiro, set: setEditResFin },
+                  { key: 'cmp', label: 'Resumo de compras (totais por categoria)',        value: editResCompras,    set: setEditResComp },
+                ].map(({ key, label, value, set }) => (
+                  <div key={key} className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 cursor-pointer" onClick={() => set(!value)}>
+                    <span className="text-xs text-gray-700 pr-4">{label}</span>
+                    <div className={`w-8 h-4 rounded-full transition-colors relative flex-shrink-0 ${value ? 'bg-amber-500' : 'bg-gray-200'}`}>
+                      <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 shadow transition-transform ${value ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {erroEdit && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{erroEdit}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={() => { setEditModalOpen(false); setEditando(null); }} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
               <button onClick={handleSalvarEdicao} disabled={salvandoEdit}
-                className="px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-60" style={{ backgroundColor: '#D97706' }}>
-                {salvandoEdit ? 'Salvando…' : 'Salvar Alterações'}
+                className="px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-60 flex items-center gap-2" style={{ backgroundColor: '#D97706' }}>
+                <PlayCircle size={14} /> {salvandoEdit ? 'Salvando…' : 'Salvar e Simular Acesso'}
               </button>
             </div>
           </div>

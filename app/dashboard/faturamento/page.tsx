@@ -69,7 +69,7 @@ export default function FaturamentoPage() {
   const [aba, setAba]                   = useState<Aba>('lancamento');
   const { filtroUnidade, unidades }      = useUnit();
   const { mesInicio, mesFim, ano }       = useDateRange();
-  const { verHistoricoFaturamento }      = usePermissoes();
+  const { verHistoricoFaturamento, unidadeRestrita } = usePermissoes();
   const [valorLancamento, setValorLancamento] = useState('');
   const [unidadeLancamento, setUnidadeLancamento] = useState('1');
   const [dataLancamento, setDataLancamento]   = useState('');
@@ -92,6 +92,7 @@ export default function FaturamentoPage() {
   const hoje = new Date().toISOString().split('T')[0];
 
   useEffect(() => { if (!dataLancamento) setDataLancamento(hoje); }, [hoje]);
+  useEffect(() => { if (unidadeRestrita) setUnidadeLancamento(unidadeRestrita); }, [unidadeRestrita]);
 
   async function carregarFaturamento() {
     const supabase = createClient();
@@ -420,9 +421,11 @@ export default function FaturamentoPage() {
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">Unidade</label>
                   <div className="grid grid-cols-2 gap-3">
-                    {unidades.map(u => (
-                      <button key={u.id} onClick={() => setUnidadeLancamento(u.id)}
-                        className={`flex items-center gap-2 px-4 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${unidadeLancamento === u.id ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-700 hover:border-gray-300'}`}>
+                    {(unidadeRestrita ? unidades.filter(u => u.id === unidadeRestrita) : unidades).map(u => (
+                      <button key={u.id}
+                        onClick={() => !unidadeRestrita && setUnidadeLancamento(u.id)}
+                        disabled={!!unidadeRestrita}
+                        className={`flex items-center gap-2 px-4 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${unidadeLancamento === u.id ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-700 hover:border-gray-300'} ${unidadeRestrita ? 'cursor-default' : ''}`}>
                         <Building2 size={15} />{u.nome}
                       </button>
                     ))}
@@ -498,7 +501,7 @@ export default function FaturamentoPage() {
                 <p className="text-sm text-gray-400">Carregando…</p>
               ) : (
                 <div className="space-y-4">
-                  {unidades.map(u => {
+                  {(unidadeRestrita ? unidades.filter(u => u.id === unidadeRestrita) : unidades).map(u => {
                     const lancado = faturamentoData.find(d => d.data === hoje && d.unidade_id === u.id);
                     return (
                       <div key={u.id} className="p-4 rounded-lg bg-gray-50 border border-gray-100">
