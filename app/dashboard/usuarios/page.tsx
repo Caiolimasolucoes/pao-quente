@@ -41,6 +41,72 @@ function emptyForm(): Omit<Usuario, 'id'> {
   };
 }
 
+// FormFields fora do componente pai para evitar remontagem a cada keystroke
+function FormFields({
+  f, setF, unidades,
+}: {
+  f: Omit<Usuario, 'id'>;
+  setF: (v: Omit<Usuario, 'id'>) => void;
+  unidades: { id: string; nome: string }[];
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2 sm:col-span-1">
+          <label className="block text-xs font-medium text-gray-700 mb-1.5">Nome Completo *</label>
+          <input type="text" placeholder="Nome do colaborador" value={f.nome}
+            onChange={e => setF({ ...f, nome: e.target.value })}
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+        </div>
+        <div className="col-span-2 sm:col-span-1">
+          <label className="block text-xs font-medium text-gray-700 mb-1.5">E-mail *</label>
+          <input type="email" placeholder="colaborador@paoquente.com.br" value={f.email}
+            onChange={e => setF({ ...f, email: e.target.value })}
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1.5">Perfil de Acesso</label>
+          <select value={f.perfil} onChange={e => setF({ ...f, perfil: e.target.value as PerfilUsuario })}
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+            {PERFIS.map(p => <option key={p}>{p}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1.5">Acesso às Unidades</label>
+          <select value={f.unidade_restrita ?? ''} onChange={e => setF({ ...f, unidade_restrita: e.target.value || null })}
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+            <option value="">Todas as unidades</option>
+            {unidades.map(u => <option key={u.id} value={u.id}>Somente {u.nome}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-gray-700">Permissões adicionais</p>
+        <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+          <input type="checkbox" className="w-4 h-4 accent-amber-600"
+            checked={f.ver_historico_faturamento}
+            onChange={e => setF({ ...f, ver_historico_faturamento: e.target.checked })} />
+          Ver histórico de faturamento
+        </label>
+        <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+          <input type="checkbox" className="w-4 h-4 accent-amber-600"
+            checked={f.ver_indicadores_sensiveis}
+            onChange={e => setF({ ...f, ver_indicadores_sensiveis: e.target.checked })} />
+          Ver indicadores sensíveis (DRE, lucro, margens)
+        </label>
+        <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+          <input type="checkbox" className="w-4 h-4 accent-amber-600"
+            checked={f.ativo}
+            onChange={e => setF({ ...f, ativo: e.target.checked })} />
+          Usuário ativo
+        </label>
+      </div>
+    </>
+  );
+}
+
 export default function UsuariosPage() {
   const { unidades }       = useUnit();
   const { setPermissoes }  = usePermissoes();
@@ -151,65 +217,6 @@ export default function UsuariosPage() {
     if (!uid) return null;
     const u = unidades.find(u => u.id === uid);
     return u ? `Só ${u.nome}` : uid;
-  }
-
-  function FormFields({ f, setF }: { f: typeof form; setF: (v: typeof form) => void }) {
-    return (
-      <>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2 sm:col-span-1">
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Nome Completo *</label>
-            <input type="text" placeholder="Nome do colaborador" value={f.nome}
-              onChange={e => setF({ ...f, nome: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
-          </div>
-          <div className="col-span-2 sm:col-span-1">
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">E-mail *</label>
-            <input type="email" placeholder="colaborador@paoquente.com.br" value={f.email}
-              onChange={e => setF({ ...f, email: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Perfil de Acesso</label>
-            <select value={f.perfil} onChange={e => setF({ ...f, perfil: e.target.value as PerfilUsuario })}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
-              {PERFIS.map(p => <option key={p}>{p}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Acesso às Unidades</label>
-            <select value={f.unidade_restrita ?? ''} onChange={e => setF({ ...f, unidade_restrita: e.target.value || null })}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
-              <option value="">Todas as unidades</option>
-              {unidades.map(u => <option key={u.id} value={u.id}>Somente {u.nome}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-gray-700">Permissões adicionais</p>
-          <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-            <input type="checkbox" className="w-4 h-4 accent-amber-600"
-              checked={f.ver_historico_faturamento}
-              onChange={e => setF({ ...f, ver_historico_faturamento: e.target.checked })} />
-            Ver histórico de faturamento
-          </label>
-          <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-            <input type="checkbox" className="w-4 h-4 accent-amber-600"
-              checked={f.ver_indicadores_sensiveis}
-              onChange={e => setF({ ...f, ver_indicadores_sensiveis: e.target.checked })} />
-            Ver indicadores sensíveis (DRE, lucro, margens)
-          </label>
-          <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-            <input type="checkbox" className="w-4 h-4 accent-amber-600"
-              checked={f.ativo}
-              onChange={e => setF({ ...f, ativo: e.target.checked })} />
-            Usuário ativo
-          </label>
-        </div>
-      </>
-    );
   }
 
   return (
@@ -340,7 +347,7 @@ export default function UsuariosPage() {
       {/* ── Modal Novo Usuário ── */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo Usuário" size="md">
         <div className="space-y-4">
-          <FormFields f={form} setF={setForm} />
+          <FormFields f={form} setF={setForm} unidades={unidades} />
 
           {/* Permissões de abas */}
           <div className="border border-gray-200 rounded-xl overflow-hidden">
@@ -399,7 +406,7 @@ export default function UsuariosPage() {
       <Modal open={editModalOpen} onClose={() => { setEditModalOpen(false); setEditando(null); }} title="Editar Usuário" size="md">
         {editando && (
           <div className="space-y-4">
-            <FormFields f={editForm} setF={setEditForm} />
+            <FormFields f={editForm} setF={setEditForm} unidades={unidades} />
             {erroEdit && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{erroEdit}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={() => { setEditModalOpen(false); setEditando(null); }} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
