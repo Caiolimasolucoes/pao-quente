@@ -3,6 +3,15 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const emailNormalizado = (e: string) => e.trim().toLowerCase();
 
+export async function GET() {
+  const { data, error } = await supabaseAdmin
+    .from('perfis')
+    .select('*')
+    .order('nome');
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
+}
+
 function isEmailDuplicado(msg: string) {
   const lower = msg.toLowerCase();
   return lower.includes('already registered') || lower.includes('already been registered') || lower.includes('email address is already');

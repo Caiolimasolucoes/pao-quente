@@ -8,7 +8,6 @@ import type { PerfilUsuario } from '@/types';
 import { usePermissoes, TODAS_ABAS } from '@/contexts/PermissoesContext';
 import { useUnit } from '@/contexts/UnitContext';
 import { navItems } from '@/components/layout/Sidebar';
-import { createClient } from '@/lib/supabase/client';
 
 const perfilConfig: Record<PerfilUsuario, { color: string; desc: string }> = {
   Administrador:      { color: 'bg-purple-50 text-purple-700 ring-1 ring-purple-600/20', desc: 'Acesso total ao sistema' },
@@ -133,12 +132,9 @@ export default function UsuariosPage() {
   const [salvandoEdit, setSalvandoEdit]   = useState(false);
 
   async function carregarUsuarios() {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from('perfis')
-      .select('*')
-      .order('nome');
-    setListaUsuarios((data || []) as Usuario[]);
+    const res = await fetch('/api/usuarios');
+    const data = res.ok ? await res.json() : [];
+    setListaUsuarios(data as Usuario[]);
     setCarregando(false);
   }
 
