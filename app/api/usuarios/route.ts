@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { error } = await supabaseAdmin.from('perfis').insert({
+    id: crypto.randomUUID(),
     nome: nome.trim(),
     email: email.trim().toLowerCase(),
     perfil,
