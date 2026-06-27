@@ -173,7 +173,13 @@ export default function UsuariosPage() {
     const json = await res.json();
     if (!res.ok) { setErro('Erro ao salvar: ' + json.error); setSalvando(false); return; }
     await carregarUsuarios();
-    setPermissoes(abasSel, pResFinanceiro, pResCompras, form.nome || 'Novo Usuário');
+    setPermissoes(
+      abasSel, pResFinanceiro, pResCompras,
+      form.ver_historico_faturamento,
+      form.ver_indicadores_sensiveis,
+      form.unidade_restrita || null,
+      form.nome || 'Novo Usuário',
+    );
     setSalvando(false);
     setModalOpen(false);
   }

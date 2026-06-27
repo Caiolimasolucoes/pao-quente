@@ -8,6 +8,7 @@ import Modal from '@/components/ui/Modal';
 import { useUnit } from '@/contexts/UnitContext';
 import { useDateRange } from '@/contexts/DateRangeContext';
 import { useFormasPagamento } from '@/contexts/FormasPagamentoContext';
+import { usePermissoes } from '@/contexts/PermissoesContext';
 import { createClient } from '@/lib/supabase/client';
 import { exportToXlsx } from '@/lib/exportXlsx';
 
@@ -68,6 +69,7 @@ export default function FaturamentoPage() {
   const [aba, setAba]                   = useState<Aba>('lancamento');
   const { filtroUnidade, unidades }      = useUnit();
   const { mesInicio, mesFim, ano }       = useDateRange();
+  const { verHistoricoFaturamento }      = usePermissoes();
   const [valorLancamento, setValorLancamento] = useState('');
   const [unidadeLancamento, setUnidadeLancamento] = useState('1');
   const [dataLancamento, setDataLancamento]   = useState('');
@@ -326,17 +328,28 @@ export default function FaturamentoPage() {
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">Acumulado — {periodoLabel}</p>
-            <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(totalMes)}</p>
-            <p className="text-xs text-gray-400 mt-1">{diasComMov.length} dia{diasComMov.length !== 1 ? 's' : ''} lançados</p>
+            <p className="text-[1.625rem] leading-none font-display italic text-gray-900">
+              {verHistoricoFaturamento ? formatCurrency(totalMes) : formatCurrency(0)}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              {verHistoricoFaturamento ? `${diasComMov.length} dia${diasComMov.length !== 1 ? 's' : ''} lançados` : 'Sem permissão'}
+            </p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">Total Geral — {periodoLabel}</p>
-            <p className="text-[1.625rem] leading-none font-display italic text-amber-600">{formatCurrency(totalGeral)}</p>
-            <p className="text-xs text-gray-400 mt-1">Todas as unidades</p>
+            <p className="text-[1.625rem] leading-none font-display italic text-amber-600">
+              {verHistoricoFaturamento ? formatCurrency(totalGeral) : formatCurrency(0)}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">{verHistoricoFaturamento ? 'Todas as unidades' : 'Sem permissão'}</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">Média de Faturamento / Dia</p>
-            {filtroUnidade === 'todas' ? (
+            {!verHistoricoFaturamento ? (
+              <>
+                <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(0)}</p>
+                <p className="text-xs text-gray-400 mt-1">Sem permissão</p>
+              </>
+            ) : filtroUnidade === 'todas' ? (
               <div className="space-y-2 mt-1">
                 {mediaPorUnidade.map(u => (
                   <div key={u.id} className="flex items-center justify-between">

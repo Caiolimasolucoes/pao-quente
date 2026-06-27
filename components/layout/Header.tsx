@@ -6,6 +6,7 @@ import { useUnit } from '@/contexts/UnitContext';
 import { useDateRange } from '@/contexts/DateRangeContext';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useNotificacoes } from '@/contexts/NotificacoesContext';
+import { usePermissoes } from '@/contexts/PermissoesContext';
 import { formatDate } from '@/lib/utils';
 
 const MESES_CURTO = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -21,6 +22,12 @@ export default function Header({ title }: HeaderProps) {
   const { mesInicio, mesFim, ano, setRange } = useDateRange();
   const { toggle } = useSidebar();
   const { notificacoes, totalNaoLidas, marcarLida, marcarTodasLidas } = useNotificacoes();
+  const { unidadeRestrita } = usePermissoes();
+
+  // Quando há restrição de unidade, forçar o filtro globalmente
+  useEffect(() => {
+    if (unidadeRestrita) setFiltroUnidade(unidadeRestrita);
+  }, [unidadeRestrita]);
 
   const [open, setOpen]           = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -128,16 +135,22 @@ export default function Header({ title }: HeaderProps) {
         {/* Seletor de unidade */}
         <div className="flex items-center gap-1.5 bg-gray-100 rounded-lg px-2 sm:px-3 py-1.5">
           <Building2 size={14} className="text-gray-500 flex-shrink-0" />
-          <select
-            value={filtroUnidade}
-            onChange={(e) => setFiltroUnidade(e.target.value)}
-            className="text-xs sm:text-sm font-medium text-gray-700 bg-transparent border-none outline-none cursor-pointer"
-          >
-            <option value="todas">Todas as unidades</option>
-            {unidades.map((u) => (
-              <option key={u.id} value={u.id}>{u.nome}</option>
-            ))}
-          </select>
+          {unidadeRestrita ? (
+            <span className="text-xs sm:text-sm font-medium text-gray-700">
+              {unidades.find(u => u.id === unidadeRestrita)?.nome ?? 'Unidade restrita'}
+            </span>
+          ) : (
+            <select
+              value={filtroUnidade}
+              onChange={(e) => setFiltroUnidade(e.target.value)}
+              className="text-xs sm:text-sm font-medium text-gray-700 bg-transparent border-none outline-none cursor-pointer"
+            >
+              <option value="todas">Todas as unidades</option>
+              {unidades.map((u) => (
+                <option key={u.id} value={u.id}>{u.nome}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Date range picker */}

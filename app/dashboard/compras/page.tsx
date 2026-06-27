@@ -7,6 +7,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { Plus, Search, Building2, X, Package, Truck, ChevronRight, Link2, FileText, Pencil, Download } from 'lucide-react';
 import { useUnit } from '@/contexts/UnitContext';
 import { useDateRange } from '@/contexts/DateRangeContext';
+import { usePermissoes } from '@/contexts/PermissoesContext';
 import { createClient } from '@/lib/supabase/client';
 import { exportToXlsx } from '@/lib/exportXlsx';
 
@@ -244,6 +245,7 @@ export default function ComprasPage() {
   const [expUnit, setExpUnit]               = useState('todas');
   const { filtroUnidade, unidades }       = useUnit();
   const { mesInicio, mesFim, ano }        = useDateRange();
+  const { verHistoricoFaturamento }       = usePermissoes();
 
   const periodoLabel = mesInicio === mesFim
     ? `${MESES[mesInicio]} ${ano}`
@@ -412,22 +414,24 @@ export default function ComprasPage() {
     <>
       <Header title="Gestão de Compras" />
       <main className="flex-1 overflow-y-auto p-6 space-y-5">
-        <div className={`grid grid-cols-1 gap-4 ${totalPorUnidade.length <= 2 ? 'sm:grid-cols-3' : 'sm:grid-cols-2 xl:grid-cols-4'}`}>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 mb-1">Total — {periodoLabel}</p>
-            <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(totalPorUnidade.reduce((a, u) => a + u.total, 0))}</p>
-            <p className="text-xs text-gray-400 mt-1">{totalPorUnidade.reduce((a, u) => a + u.count, 0)} lançamentos no período</p>
-          </div>
-          {totalPorUnidade.map(u => (
-            <div key={u.id} className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${u.cor}`}>{u.nome}</span>
-              </div>
-              <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(u.total)}</p>
-              <p className="text-xs text-gray-400 mt-1">{u.count} compras no período</p>
+        {verHistoricoFaturamento && (
+          <div className={`grid grid-cols-1 gap-4 ${totalPorUnidade.length <= 2 ? 'sm:grid-cols-3' : 'sm:grid-cols-2 xl:grid-cols-4'}`}>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <p className="text-xs text-gray-500 mb-1">Total — {periodoLabel}</p>
+              <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(totalPorUnidade.reduce((a, u) => a + u.total, 0))}</p>
+              <p className="text-xs text-gray-400 mt-1">{totalPorUnidade.reduce((a, u) => a + u.count, 0)} lançamentos no período</p>
             </div>
-          ))}
-        </div>
+            {totalPorUnidade.map(u => (
+              <div key={u.id} className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${u.cor}`}>{u.nome}</span>
+                </div>
+                <p className="text-[1.625rem] leading-none font-display italic text-gray-900">{formatCurrency(u.total)}</p>
+                <p className="text-xs text-gray-400 mt-1">{u.count} compras no período</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
