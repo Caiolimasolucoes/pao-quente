@@ -5,7 +5,7 @@ import Header from '@/components/layout/Header';
 import Modal from '@/components/ui/Modal';
 import { Plus, Shield, UserCheck, UserX, Eye, EyeOff, Building2, History, PlayCircle, Pencil, Lock } from 'lucide-react';
 import type { PerfilUsuario } from '@/types';
-import { usePermissoes, TODAS_ABAS } from '@/contexts/PermissoesContext';
+import { usePermissoes, TODAS_ABAS, ABAS_POR_PERFIL } from '@/contexts/PermissoesContext';
 import { useUnit } from '@/contexts/UnitContext';
 import { navItems } from '@/components/layout/Sidebar';
 
@@ -143,6 +143,11 @@ export default function UsuariosPage() {
 
   useEffect(() => { carregarUsuarios(); }, []);
 
+  // Quando o perfil muda no form de edição, atualiza as abas automaticamente
+  useEffect(() => {
+    if (editModalOpen) setEditAbasSel(ABAS_POR_PERFIL[editForm.perfil] ?? TODAS_ABAS);
+  }, [editForm.perfil, editModalOpen]);
+
   function toggleAba(href: string) {
     setAbasSel(prev => prev.includes(href) ? prev.filter(a => a !== href) : [...prev, href]);
   }
@@ -195,8 +200,8 @@ export default function UsuariosPage() {
       ver_historico_faturamento: u.ver_historico_faturamento,
       ver_indicadores_sensiveis: u.ver_indicadores_sensiveis,
     });
-    setEditAbasSel(TODAS_ABAS);
-    setEditResFin(true);
+    setEditAbasSel(ABAS_POR_PERFIL[u.perfil] ?? TODAS_ABAS);
+    setEditResFin(u.ver_indicadores_sensiveis);
     setEditResComp(true);
     setErroEdit('');
     setEditModalOpen(true);

@@ -13,7 +13,7 @@ export const TODAS_ABAS = [
   '/dashboard/usuarios',
 ];
 
-const ABAS_POR_PERFIL: Record<string, string[]> = {
+export const ABAS_POR_PERFIL: Record<string, string[]> = {
   'Administrador':      TODAS_ABAS,
   'Gestor Financeiro':  TODAS_ABAS.filter(a => a !== '/dashboard/usuarios'),
   'Operacional':        ['/dashboard', '/dashboard/faturamento', '/dashboard/compras', '/dashboard/cadastros'],
@@ -94,16 +94,29 @@ export function PermissoesProvider({ children }: { children: React.ReactNode }) 
         const perfil: UsuarioLogado | null = await res.json();
         if (!perfil) return;
         setUsuarioLogado(perfil);
-        const p = aplicarPerfil(perfil);
-        setAbasVisiveis(p.abas);
-        setResFinanceiro(p.resFin);
-        setResCompras(p.resComp);
-        setVerHistorico(p.historico);
-        setVerIndicadores(p.indicadores);
-        setUnidadeRestrita(p.unidade);
+        // Só aplica permissões do banco se não estiver em modo simulação
+        setSimulandoComo(prev => {
+          if (prev) return prev; // mantém simulação ativa
+          const p = aplicarPerfil(perfil);
+          setAbasVisiveis(p.abas);
+          setResFinanceiro(p.resFin);
+          setResCompras(p.resComp);
+          setVerHistorico(p.historico);
+          setVerIndicadores(p.indicadores);
+          setUnidadeRestrita(p.unidade);
+          return null;
+        });
       } catch { /* sessão não disponível */ }
     }
+
     carregarSessao();
+
+    // Re-carrega permissões quando o usuário volta para a aba
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') carregarSessao();
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, []);
 
   function setPermissoes(
