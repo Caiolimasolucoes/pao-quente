@@ -4,12 +4,24 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 const emailNormalizado = (e: string) => e.trim().toLowerCase();
 
 export async function GET() {
-  const { data, error } = await supabaseAdmin
-    .from('perfis')
-    .select('*')
-    .order('nome');
+  const [{ data: perfis, error }, { data: authList }] = await Promise.all([
+    supabaseAdmin.from('perfis').select('*').order('nome'),
+    supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+  ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+
+  // Mapa userId → abas_permitidas salvas no user_metadata
+  const metaMap: Record<string, string[] | null> = {};
+  for (const u of authList?.users ?? []) {
+    metaMap[u.id] = u.user_metadata?.abas_permitidas ?? null;
+  }
+
+  const resultado = (perfis ?? []).map(p => ({
+    ...p,
+    abas_permitidas: metaMap[p.id] ?? null,
+  }));
+
+  return NextResponse.json(resultado);
 }
 
 function isEmailDuplicado(msg: string) {

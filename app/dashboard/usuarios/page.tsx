@@ -31,6 +31,7 @@ type Usuario = {
   unidade_restrita: string | null;
   ver_historico_faturamento: boolean;
   ver_indicadores_sensiveis: boolean;
+  abas_permitidas?: string[] | null;
 };
 
 function emptyForm(): Omit<Usuario, 'id'> {
@@ -42,11 +43,12 @@ function emptyForm(): Omit<Usuario, 'id'> {
 
 // FormFields fora do componente pai para evitar remontagem a cada keystroke
 function FormFields({
-  f, setF, unidades,
+  f, setF, unidades, onPerfilChange,
 }: {
   f: Omit<Usuario, 'id'>;
   setF: (v: Omit<Usuario, 'id'>) => void;
   unidades: { id: string; nome: string }[];
+  onPerfilChange?: (perfil: PerfilUsuario) => void;
 }) {
   return (
     <>
@@ -67,7 +69,11 @@ function FormFields({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1.5">Perfil de Acesso</label>
-          <select value={f.perfil} onChange={e => setF({ ...f, perfil: e.target.value as PerfilUsuario })}
+          <select value={f.perfil} onChange={e => {
+              const p = e.target.value as PerfilUsuario;
+              setF({ ...f, perfil: p });
+              onPerfilChange?.(p);
+            }}
             className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
             {PERFIS.map(p => <option key={p}>{p}</option>)}
           </select>
@@ -143,10 +149,9 @@ export default function UsuariosPage() {
 
   useEffect(() => { carregarUsuarios(); }, []);
 
-  // Quando o perfil muda no form de edição, atualiza as abas automaticamente
-  useEffect(() => {
-    if (editModalOpen) setEditAbasSel(ABAS_POR_PERFIL[editForm.perfil] ?? TODAS_ABAS);
-  }, [editForm.perfil, editModalOpen]);
+  // Removido: o useEffect que resetava editAbasSel quando editForm.perfil mudava
+  // causava apagar as abas salvas ao abrir o modal. Agora o reset acontece
+  // apenas quando o admin muda o perfil manualmente (ver handleEditPerfilChange).
 
   function toggleAba(href: string) {
     setAbasSel(prev => prev.includes(href) ? prev.filter(a => a !== href) : [...prev, href]);
@@ -200,11 +205,17 @@ export default function UsuariosPage() {
       ver_historico_faturamento: u.ver_historico_faturamento,
       ver_indicadores_sensiveis: u.ver_indicadores_sensiveis,
     });
-    setEditAbasSel(ABAS_POR_PERFIL[u.perfil] ?? TODAS_ABAS);
+    // Usa as abas salvas do banco; se null (usuário antigo), usa o padrão do perfil
+    setEditAbasSel(u.abas_permitidas ?? ABAS_POR_PERFIL[u.perfil] ?? TODAS_ABAS);
     setEditResFin(u.ver_indicadores_sensiveis);
     setEditResComp(true);
     setErroEdit('');
     setEditModalOpen(true);
+  }
+
+  function handleEditPerfilChange(novoPerfil: PerfilUsuario) {
+    // setEditForm já foi chamado pelo FormFields; aqui só reseta as abas
+    setEditAbasSel(ABAS_POR_PERFIL[novoPerfil] ?? TODAS_ABAS);
   }
 
   async function handleSalvarEdicao() {
@@ -439,7 +450,7 @@ export default function UsuariosPage() {
       <Modal open={editModalOpen} onClose={() => { setEditModalOpen(false); setEditando(null); }} title="Editar Usuário" size="md">
         {editando && (
           <div className="space-y-4">
-            <FormFields f={editForm} setF={setEditForm} unidades={unidades} />
+            <FormFields f={editForm} setF={setEditForm} unidades={unidades} onPerfilChange={handleEditPerfilChange} />
 
             {/* Permissões de abas */}
             <div className="border border-gray-200 rounded-xl overflow-hidden">
