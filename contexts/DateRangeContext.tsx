@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useState } from 'react';
 
+const _HOJE = new Date();
+
 interface DateRangeCtx {
   mesInicio: number; // 0-indexed (0=Jan … 11=Dez)
   mesFim: number;
@@ -12,9 +14,9 @@ interface DateRangeCtx {
 const Ctx = createContext<DateRangeCtx>({} as DateRangeCtx);
 
 export function DateRangeProvider({ children }: { children: React.ReactNode }) {
-  const [mesInicio, setMesInicio] = useState(0); // Janeiro
-  const [mesFim, setMesFim]       = useState(5); // Junho (mês atual do mock)
-  const [ano, setAno]             = useState(2026);
+  const [mesInicio, setMesInicio] = useState(0);                    // Janeiro
+  const [mesFim, setMesFim]       = useState(_HOJE.getMonth());     // Mês atual
+  const [ano, setAno]             = useState(_HOJE.getFullYear());  // Ano atual
 
   function setRange(ini: number, fim: number, a: number) {
     const [start, end] = ini <= fim ? [ini, fim] : [fim, ini];

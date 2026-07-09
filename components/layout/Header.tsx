@@ -213,9 +213,9 @@ export default function Header({ title }: HeaderProps) {
               </div>
               <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100 flex-wrap">
                 {[
-                  { l: 'Este mês', f: () => setRange(5, 5, 2026) },
-                  { l: 'Trim.',    f: () => setRange(3, 5, 2026) },
-                  { l: 'Semestre', f: () => setRange(0, 5, 2026) },
+                  { l: 'Este mês', f: () => setRange(MOCK_MES_MAX, MOCK_MES_MAX, MOCK_ANO) },
+                  { l: 'Trim.',    f: () => setRange(Math.max(0, MOCK_MES_MAX - 2), MOCK_MES_MAX, MOCK_ANO) },
+                  { l: 'Ano',      f: () => setRange(0, MOCK_MES_MAX, MOCK_ANO) },
                 ].map(({ l, f }) => (
                   <button key={l} onClick={() => { f(); setOpen(false); resetPicker(); }}
                     className="text-[10px] text-amber-700 font-semibold border border-amber-200 bg-amber-50 hover:bg-amber-100 rounded-md px-2 py-1 transition-colors">
