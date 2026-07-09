@@ -5,7 +5,7 @@ import Header from '@/components/layout/Header';
 import Modal from '@/components/ui/Modal';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Plus, AlertCircle, Link2, Building2, Search, X, Truck, CheckCircle2, Pencil, Download } from 'lucide-react';
+import { Plus, AlertCircle, Link2, Building2, Search, X, Truck, CheckCircle2, Pencil, Download, Trash2, AlertTriangle } from 'lucide-react';
 import { useUnit } from '@/contexts/UnitContext';
 import { useDateRange } from '@/contexts/DateRangeContext';
 import { createClient } from '@/lib/supabase/client';
@@ -214,6 +214,8 @@ export default function BoletosPage() {
   const [salvandoPagamento, setSalvandoPagamento] = useState(false);
   const [expOpen, setExpOpen]               = useState(false);
   const [expUnit, setExpUnit]               = useState('todas');
+  const [confirmDelete, setConfirmDelete]   = useState<any>(null);
+  const [excluindo, setExcluindo]           = useState(false);
   // Campos do formulário
   const [formUnidade, setFormUnidade]   = useState('');
   const [formForn, setFormForn]         = useState('');
@@ -375,6 +377,17 @@ export default function BoletosPage() {
     setSalvandoEdit(false);
     setEditModalOpen(false);
     setEditingBoleto(null);
+  }
+
+  async function handleExcluir() {
+    if (!confirmDelete) return;
+    setExcluindo(true);
+    const supabase = createClient();
+    const { error } = await supabase.from('boletos').delete().eq('id', confirmDelete.id);
+    if (error) { alert('Erro ao excluir: ' + error.message); setExcluindo(false); return; }
+    setListaBoletos(prev => prev.filter(b => b.id !== confirmDelete.id));
+    setConfirmDelete(null);
+    setExcluindo(false);
   }
 
   async function handleAddFornecedorDB(nome: string, cat: string) {
@@ -555,6 +568,11 @@ export default function BoletosPage() {
                             title="Editar boleto"
                             className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
                             <Pencil size={13} />
+                          </button>
+                          <button onClick={() => setConfirmDelete(b)}
+                            title="Excluir boleto"
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            <Trash2 size={13} />
                           </button>
                           {statusComp !== 'pago' && (
                             <button onClick={() => handleMarcarPago(b)}
@@ -846,6 +864,39 @@ export default function BoletosPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal de confirmação de exclusão */}
+      <Modal open={confirmDelete !== null} onClose={() => setConfirmDelete(null)} title="Excluir Boleto" size="sm">
+        {confirmDelete && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <AlertTriangle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-red-800">Atenção — esta ação não pode ser desfeita</p>
+                <p className="text-xs text-red-600 mt-0.5">O boleto será removido permanentemente do sistema.</p>
+              </div>
+            </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1 text-sm">
+              <p className="font-semibold text-gray-900">{confirmDelete.fornecedor}</p>
+              {confirmDelete.sub_categoria && <p className="text-xs text-gray-500">{confirmDelete.sub_categoria}</p>}
+              <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
+                <span>Vencimento: <strong className="text-gray-700">{formatDate(confirmDelete.vencimento)}</strong></span>
+                <span>Valor: <strong className="text-gray-700">{formatCurrency(Number(confirmDelete.valor))}</strong></span>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-1">
+              <button onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button onClick={handleExcluir} disabled={excluindo}
+                className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-60 transition-colors">
+                <Trash2 size={14} /> {excluindo ? 'Excluindo…' : 'Excluir Boleto'}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </>
   );
