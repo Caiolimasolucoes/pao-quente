@@ -393,7 +393,12 @@ export default function BoletosPage() {
   async function handleAddFornecedorDB(nome: string, cat: string) {
     setFornExtras(prev => [...prev, { nome, categoria: cat }]);
     const supabase = createClient();
-    await supabase.from('fornecedores').insert({ id: `forn-${Date.now()}`, nome, categoria: cat, ativo: true });
+    const { error } = await supabase.from('fornecedores').insert({ id: `forn-${Date.now()}`, nome, categoria: cat, ativo: true });
+    if (error) {
+      alert('Erro ao salvar fornecedor: ' + error.message);
+      setFornExtras(prev => prev.filter(f => f.nome !== nome));
+      return;
+    }
     const { data } = await supabase.from('fornecedores').select('*').order('nome');
     if (data) setFornecedoresDB(data);
   }

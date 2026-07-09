@@ -555,7 +555,12 @@ export default function ComprasPage() {
               onAddProduto={async (nome, unidade, cat) => {
                 setProdutosExtras(prev => [...prev, { nome, unidade, cat }]);
                 const supabase = createClient();
-                await supabase.from('produtos').insert({ id: `prod-${Date.now()}`, nome, unidade, categoria: cat, ativo: true });
+                const { error } = await supabase.from('produtos').insert({ id: `prod-${Date.now()}`, nome, unidade, categoria: cat, ativo: true });
+                if (error) {
+                  alert('Erro ao salvar produto: ' + error.message);
+                  setProdutosExtras(prev => prev.filter(p => p.nome !== nome));
+                  return;
+                }
                 const { data } = await supabase.from('produtos').select('*').order('nome');
                 if (data) setProdutosDB(data);
               }}

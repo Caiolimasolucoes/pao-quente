@@ -218,6 +218,29 @@ export default function CadastrosPage() {
     if (!confirmDel) return;
     setErroDeletar('');
     const supabase = createClient();
+
+    if (confirmDel.tipo === 'fornecedor') {
+      const [{ count: cb }, { count: cc }] = await Promise.all([
+        supabase.from('boletos').select('*', { count: 'exact', head: true }).ilike('fornecedor', confirmDel.nome),
+        supabase.from('compras').select('*', { count: 'exact', head: true }).ilike('fornecedor', confirmDel.nome),
+      ]);
+      const total = (cb ?? 0) + (cc ?? 0);
+      if (total > 0) {
+        setErroDeletar(
+          `Este fornecedor está em uso em ${total} lançamento${total > 1 ? 's' : ''} (${cb ?? 0} boleto${(cb ?? 0) !== 1 ? 's' : ''}, ${cc ?? 0} compra${(cc ?? 0) !== 1 ? 's' : ''}). Remova-o dos lançamentos antes de excluir.`
+        );
+        return;
+      }
+    } else if (confirmDel.tipo === 'produto') {
+      const { count } = await supabase.from('compras').select('*', { count: 'exact', head: true }).ilike('produto', confirmDel.nome);
+      if ((count ?? 0) > 0) {
+        setErroDeletar(
+          `Este produto está em uso em ${count} compra${(count ?? 0) !== 1 ? 's' : ''}. Remova-o dos lançamentos antes de excluir.`
+        );
+        return;
+      }
+    }
+
     const tableMap: Record<string, string> = {
       produto: 'produtos', fornecedor: 'fornecedores',
       'cat-compra': 'categorias_compra', 'cat-boleto': 'categorias_boleto',
