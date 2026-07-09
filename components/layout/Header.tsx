@@ -12,8 +12,9 @@ import { formatDate } from '@/lib/utils';
 const MESES_CURTO = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MESES_LONGO = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-const MOCK_ANO = 2026;
-const MOCK_MES_MAX = 5;
+const HOJE = new Date();
+const MOCK_ANO = HOJE.getFullYear();
+const MOCK_MES_MAX = HOJE.getMonth(); // 0-indexed, mês atual é o máximo permitido
 
 interface HeaderProps { title: string; }
 
