@@ -172,11 +172,26 @@ export default function Header({ title }: HeaderProps) {
           {open && (
             <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-4 w-72">
               <div className="flex items-center justify-between mb-3">
-                <button onClick={() => setAnoLocal((a) => a - 1)} className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-900">
+                <button onClick={() => {
+                  const novoAno = anoLocal - 1;
+                  setAnoLocal(novoAno);
+                  setRange(0, 11, novoAno);
+                  resetPicker();
+                }} className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-900">
                   <ChevronLeft size={16} />
                 </button>
                 <span className="text-sm font-bold text-gray-900">{anoLocal}</span>
-                <button onClick={() => setAnoLocal((a) => a + 1)} className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-900">
+                <button
+                  disabled={anoLocal >= MOCK_ANO}
+                  onClick={() => {
+                    const novoAno = anoLocal + 1;
+                    setAnoLocal(novoAno);
+                    const fim = novoAno < MOCK_ANO ? 11 : MOCK_MES_MAX;
+                    setRange(0, fim, novoAno);
+                    resetPicker();
+                  }}
+                  className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
                   <ChevronRight size={16} />
                 </button>
               </div>
@@ -215,7 +230,7 @@ export default function Header({ title }: HeaderProps) {
                 {[
                   { l: 'Este mês', f: () => setRange(MOCK_MES_MAX, MOCK_MES_MAX, MOCK_ANO) },
                   { l: 'Trim.',    f: () => setRange(Math.max(0, MOCK_MES_MAX - 2), MOCK_MES_MAX, MOCK_ANO) },
-                  { l: 'Ano',      f: () => setRange(0, MOCK_MES_MAX, MOCK_ANO) },
+                  { l: anoLocal < MOCK_ANO ? 'Ano inteiro' : 'Este ano', f: () => setRange(0, anoLocal < MOCK_ANO ? 11 : MOCK_MES_MAX, anoLocal) },
                 ].map(({ l, f }) => (
                   <button key={l} onClick={() => { f(); setOpen(false); resetPicker(); }}
                     className="text-[10px] text-amber-700 font-semibold border border-amber-200 bg-amber-50 hover:bg-amber-100 rounded-md px-2 py-1 transition-colors">
