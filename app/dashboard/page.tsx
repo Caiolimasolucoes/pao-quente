@@ -101,13 +101,13 @@ export default function DashboardPage() {
   useEffect(() => {
     const supabase = createClient();
     Promise.all([
-      supabase.from('faturamento_diario').select('*').order('data'),
-      supabase.from('boletos').select('categoria,sub_categoria,valor,unidade_id,vencimento,status'),
+      supabase.from('faturamento_diario').select('*').gte('data', `${ano}-01-01`).lte('data', `${ano}-12-31`).order('data'),
+      supabase.from('boletos').select('categoria,sub_categoria,valor,unidade_id,vencimento,status').gte('vencimento', `${ano}-01-01`).lte('vencimento', `${ano}-12-31`),
     ]).then(([{ data: fat }, { data: bol }]) => {
       setFatDiarioDB(fat || []);
       setBoletosDB(bol || []);
     });
-  }, []);
+  }, [ano]);
 
   // DRE mensal computado dinamicamente (mesma lógica de indicadores/page.tsx)
   const dreDB = useMemo(() => {

@@ -162,15 +162,15 @@ export default function IndicadoresPage() {
   useEffect(() => {
     const supabase = createClient();
     Promise.all([
-      supabase.from('faturamento_diario').select('*').order('data'),
-      supabase.from('boletos').select('fornecedor,categoria,sub_categoria,valor,unidade_id,vencimento,status'),
-      supabase.from('compras').select('produto,fornecedor,categoria,valor_total,valor_unitario,unidade_id,data'),
+      supabase.from('faturamento_diario').select('*').gte('data', `${anoRange}-01-01`).lte('data', `${anoRange}-12-31`).order('data'),
+      supabase.from('boletos').select('fornecedor,categoria,sub_categoria,valor,unidade_id,vencimento,status').gte('vencimento', `${anoRange}-01-01`).lte('vencimento', `${anoRange}-12-31`),
+      supabase.from('compras').select('produto,fornecedor,categoria,valor_total,valor_unitario,unidade_id,data').gte('data', `${anoRange}-01-01`).lte('data', `${anoRange}-12-31`),
     ]).then(([{ data: fat }, { data: bol }, { data: cpr }]) => {
       setFatDiarioDB(fat || []);
       setBoletosDB(bol || []);
       setComprasDB(cpr || []);
     });
-  }, []);
+  }, [anoRange]);
 
   // DRE mensal computado dinamicamente
   const dreDB = useMemo(() => {
