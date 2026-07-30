@@ -220,10 +220,13 @@ export default function BoletosPage() {
   const [formStatus, setFormStatus]     = useState('pendente');
   const [formVinculado, setFormVinculado] = useState(false);
 
-  async function carregarDados() {
+  async function carregarDados(anoFiltro = ano) {
     const supabase = createClient();
     const [{ data: boletosData }, { data: fornData }, { data: catBol }] = await Promise.all([
-      supabase.from('boletos').select('*').order('vencimento', { ascending: true }),
+      supabase.from('boletos').select('*')
+        .gte('vencimento', `${anoFiltro}-01-01`)
+        .lte('vencimento', `${anoFiltro}-12-31`)
+        .order('vencimento', { ascending: true }),
       supabase.from('fornecedores').select('*').order('nome'),
       supabase.from('categorias_boleto').select('nome, subcategorias').order('nome'),
     ]);
@@ -233,7 +236,7 @@ export default function BoletosPage() {
     setCarregando(false);
   }
 
-  useEffect(() => { carregarDados(); }, []);
+  useEffect(() => { carregarDados(ano); }, [ano]);
 
   function handleExportBoletos() {
     const unidNome = (uid: string) => unidades.find(u => u.id === uid)?.nome ?? uid;
