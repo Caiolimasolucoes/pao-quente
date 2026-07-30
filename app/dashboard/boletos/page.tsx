@@ -168,7 +168,7 @@ function FornecedorAutocomplete({
 export default function BoletosPage() {
   const [listaBoletos, setListaBoletos]   = useState<any[]>([]);
   const [fornecedoresDB, setFornecedoresDB] = useState<any[]>([]);
-  const [categoriasBoletoDB, setCategoriasBoletoDB] = useState<{ nome: string; categoria_pai: string }[]>([]);
+  const [categoriasBoletoDB, setCategoriasBoletoDB] = useState<{ nome: string; subcategorias: string[] }[]>([]);
   const [carregando, setCarregando]       = useState(true);
   const [salvando, setSalvando]           = useState(false);
   const [erro, setErro]                   = useState('');
@@ -188,13 +188,7 @@ export default function BoletosPage() {
 
   const categoriasBoletoDyn = useMemo(() => {
     if (categoriasBoletoDB.length === 0) return CATEGORIAS_BOLETO_FALLBACK;
-    const groups: Record<string, string[]> = {};
-    for (const c of categoriasBoletoDB) {
-      const pai = (c.categoria_pai || 'Outros').trim();
-      if (!groups[pai]) groups[pai] = [];
-      groups[pai].push(c.nome);
-    }
-    return Object.entries(groups).map(([nome, subs]) => ({ nome, subs }));
+    return categoriasBoletoDB.map(c => ({ nome: c.nome, subs: c.subcategorias || [] }));
   }, [categoriasBoletoDB]);
 
   function getUnitBadge(unidade_id: string) {
@@ -231,11 +225,11 @@ export default function BoletosPage() {
     const [{ data: boletosData }, { data: fornData }, { data: catBol }] = await Promise.all([
       supabase.from('boletos').select('*').order('vencimento', { ascending: true }),
       supabase.from('fornecedores').select('*').order('nome'),
-      supabase.from('categorias_boleto').select('nome, categoria_pai').order('categoria_pai').order('nome'),
+      supabase.from('categorias_boleto').select('nome, subcategorias').order('nome'),
     ]);
     setListaBoletos(boletosData || []);
     setFornecedoresDB(fornData || []);
-    setCategoriasBoletoDB((catBol || []) as { nome: string; categoria_pai: string }[]);
+    setCategoriasBoletoDB((catBol || []) as { nome: string; subcategorias: string[] }[]);
     setCarregando(false);
   }
 
